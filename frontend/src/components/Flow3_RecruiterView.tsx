@@ -124,19 +124,19 @@ export const Flow3_RecruiterView: React.FC<Flow3Props> = ({ onGoToOrganization }
   };
 
   return (
-    <div className="min-h-[calc(100vh-65px)] bg-[#FAF7F2] px-4 py-8 font-sans text-[#141413] antialiased sm:px-6 lg:px-8">
+    <div className="min-h-[calc(100vh-65px)] bg-[#1E70F9] px-4 py-8 font-sans text-[#141413] antialiased sm:px-6 lg:px-8">
       <div className="mx-auto max-w-7xl">
 
         {/* ── TOP HEADER & ORGANIZATION PORTAL LINK ── */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-7">
           <div>
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#EAE5DE] text-[#635B53] text-xs font-semibold uppercase tracking-wider mb-2">
-              <Building2 className="w-3.5 h-3.5 text-[#141413]" /> Recruiter Workspace
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/20 text-white text-xs font-semibold uppercase tracking-wider mb-2 backdrop-blur-xs">
+              <Building2 className="w-3.5 h-3.5 text-white" /> Recruiter Workspace
             </div>
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#141413]">
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
               Talent Sourcing & Candidates
             </h1>
-            <p className="mt-1 text-sm text-[#736B63]">
+            <p className="mt-1 text-sm text-white/85">
               Search verified engineering talent with rich photographic dossier cards.
             </p>
           </div>
@@ -145,12 +145,12 @@ export const Flow3_RecruiterView: React.FC<Flow3Props> = ({ onGoToOrganization }
             <button
               type="button"
               onClick={onGoToOrganization}
-              className="self-start sm:self-center flex items-center gap-2 px-6 py-2.5 rounded-full bg-[#0B0C10] hover:bg-black active:scale-98 text-xs font-bold text-white shadow-sm transition cursor-pointer shrink-0"
+              className="self-start sm:self-center flex items-center gap-2 px-6 py-2.5 rounded-full bg-white hover:bg-slate-100 active:scale-98 text-xs font-bold text-[#1E70F9] shadow-md transition cursor-pointer shrink-0"
             >
-              <Building2 className="w-4 h-4 text-white" />
+              <Building2 className="w-4 h-4 text-[#1E70F9]" />
               <span>Company Pipeline</span>
               {recruitedCount > 0 && (
-                <span className="ml-1.5 px-2 py-0.5 rounded-full bg-white/20 text-white text-[11px] font-bold">
+                <span className="ml-1.5 px-2 py-0.5 rounded-full bg-[#1E70F9]/15 text-[#1E70F9] text-[11px] font-bold">
                   {recruitedCount}
                 </span>
               )}

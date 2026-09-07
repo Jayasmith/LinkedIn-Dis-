@@ -132,8 +132,8 @@ export function App() {
 
   if (!authChecked) {
     return (
-      <div className="min-h-screen bg-[#FAF7F2] flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-[#141413]" />
+      <div className="min-h-screen bg-[#1E70F9] flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-white" />
       </div>
     );
   }
@@ -143,11 +143,9 @@ export function App() {
     return <LoginView onLoginSuccess={handleLoginSuccess} />;
   }
 
-  const isCandidateBlue = currentUser?.role === 'candidate' && (activeTab === 'profile' || activeTab === 'explore');
-
-  // ── AUTHENTICATED SYSTEM (Claude Warm Stone Aesthetic / Solid Blue SaaS Dashboard) ──
+  // ── AUTHENTICATED SYSTEM (Unified Solid Blue SaaS Dashboard across Candidate & Recruiter) ──
   return (
-    <div className={`min-h-screen ${isCandidateBlue ? 'bg-[#1E70F9]' : 'bg-[#FAF7F2]'} font-sans antialiased text-[#141413] flex flex-col selection:bg-[#1E70F9] selection:text-white`}>
+    <div className="min-h-screen bg-[#1E70F9] font-sans antialiased text-[#141413] flex flex-col selection:bg-[#1E70F9] selection:text-white">
       
       {/* ── TOP NAVBAR (Profile, Companies, Search, Pipeline pills) ── */}
       <AppNavbar

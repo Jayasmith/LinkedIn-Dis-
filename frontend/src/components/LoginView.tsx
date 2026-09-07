@@ -172,7 +172,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
     return (
       <main
         id="main-container"
-        className="min-h-screen w-full bg-[#eaecf0] sm:bg-[#e4e7eb] flex items-center justify-center p-3 sm:p-6 md:p-8 font-sans antialiased selection:bg-black selection:text-white"
+        className="min-h-screen w-full bg-[#1E70F9] flex items-center justify-center p-3 sm:p-6 md:p-8 font-sans antialiased selection:bg-black selection:text-white"
       >
         {/* Mobile Phone Device Card Container */}
         <div
@@ -462,7 +462,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
   return (
     <main
       id="main-container"
-      className="min-h-screen w-full bg-[#f4f5f7] flex items-center justify-center p-4 sm:p-6 md:p-8 font-sans antialiased selection:bg-black selection:text-white relative"
+      className="min-h-screen w-full bg-[#1E70F9] flex items-center justify-center p-4 sm:p-6 md:p-8 font-sans antialiased selection:bg-black selection:text-white relative"
     >
       {/* Hidden preloader video */}
       <video
