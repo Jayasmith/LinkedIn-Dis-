@@ -56,6 +56,11 @@ class ExtractedCertificationItem(BaseModel):
     expiration_date: Optional[str] = None
 
 
+class ExtractedLanguageItem(BaseModel):
+    language: str
+    proficiency: Optional[str] = "Professional"
+
+
 class ResumeExtractionResult(BaseModel):
     personal_information: ExtractedPersonalInfo = Field(default_factory=ExtractedPersonalInfo)
     professional_information: ExtractedProfessionalInfo = Field(default_factory=ExtractedProfessionalInfo)
@@ -63,7 +68,7 @@ class ResumeExtractionResult(BaseModel):
     education: List[ExtractedEducationItem] = []
     certifications: List[ExtractedCertificationItem] = []
     experience: List[ExtractedExperienceItem] = []
-    languages: List[Dict[str, Any]] = []
+    languages: List[ExtractedLanguageItem] = []
     portfolio_links: List[str] = []
     suggested_roles: List[str] = []
     detected_language: Optional[str] = "en"
