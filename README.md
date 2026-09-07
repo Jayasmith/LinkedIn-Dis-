@@ -1,6 +1,10 @@
 # Dullnit V1 — Candidate Discovery & Recruitment Matching Platform
 
-A production-grade, backend-first candidate discovery and recruitment matching platform designed with strict deterministic database guarantees, spatial PostGIS filtering, transparent multi-criteria scoring, PyMuPDF / python-docx text extraction, and provider-agnostic Google Gemini AI structured reconciliation.
+> **🚀 One-Command Launch:**
+> Double-click **`start.bat`** (Windows) or run `python run.py` / `npm start` in your terminal to boot both Backend & Frontend simultaneously!
+
+> **🌐 Ready for Vercel:**
+> Connect repository to Vercel or run `vercel` — pre-configured via `vercel.json` with zero-setup client-side persistence and intelligent API fallback.
 
 ---
 

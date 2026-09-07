@@ -48,3 +48,8 @@ Thumbs.db
 frontend/node_modules/
 frontend/dist/
 frontend/.env.local
+
+# Build & Agent Scratch
+node_modules/
+scratch/
+
