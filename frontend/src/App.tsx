@@ -61,7 +61,10 @@ export function App() {
           <Flow1_ProfileForm onConfirmProfile={() => setCurrentFlow('flow2')} />
         )}
         {currentFlow === 'flow2' && (
-          <Flow2_PersonaView onRegenerate={() => {}} />
+          <Flow2_PersonaView 
+            onGoToUpload={() => setCurrentFlow('flow1')} 
+            onRegenerate={() => {}} 
+          />
         )}
         {currentFlow === 'flow3' && (
           <Flow3_RecruiterView />

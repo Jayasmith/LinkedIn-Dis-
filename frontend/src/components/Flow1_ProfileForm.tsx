@@ -1,96 +1,72 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { api } from '../services/api';
+import type { ResumeExtractionResult } from '../types';
 
 interface Flow1Props {
   onConfirmProfile: () => void;
 }
 
 export const Flow1_ProfileForm: React.FC<Flow1Props> = ({ onConfirmProfile }) => {
-  const [activeMethod, setActiveMethod] = useState<'manual' | 'upload'>('manual');
+  const [activeMethod, setActiveMethod] = useState<'manual' | 'upload'>('upload');
   const [step, setStep] = useState<number>(1); // 1: Basics, 2: Skills/Work, 3: Review
-  const [skills, setSkills] = useState<string[]>([
-    'Python',
-    'FastAPI',
-    'PostgreSQL',
-    'Docker',
-    'PyTorch',
-    'PostGIS'
-  ]);
-  const [newSkill, setNewSkill] = useState<string>('');
-
-  // Form fields
-  const [fullName, setFullName] = useState<string>('Demuni Jayasmith');
-  const [headline, setHeadline] = useState<string>('AI & Backend Systems Architect');
+  
+  // Real Form State (starts clean, or loads from DB)
+  const [fullName, setFullName] = useState<string>('');
+  const [headline, setHeadline] = useState<string>('');
   const [city, setCity] = useState<string>('Colombo');
   const [country, setCountry] = useState<string>('Sri Lanka');
   const [latitude, setLatitude] = useState<number>(6.9271);
   const [longitude, setLongitude] = useState<number>(79.8612);
+  const [totalYears, setTotalYears] = useState<number>(0);
   const [visibility, setVisibility] = useState<string>('Public (Recommended)');
+  const [skills, setSkills] = useState<string[]>([]);
+  const [newSkill, setNewSkill] = useState<string>('');
 
-  // File upload state
+  // Method B Real Upload State
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isProcessing, setIsProcessing] = useState<boolean>(false);
+  const [pipelineMessage, setPipelineMessage] = useState<string | null>(null);
+  const [pipelineStepIndex, setPipelineStepIndex] = useState<number>(0);
+  const [uploadedResumeId, setUploadedResumeId] = useState<string | null>(null);
+  const [extractionData, setExtractionData] = useState<ResumeExtractionResult | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Pipeline Tracker State for Method B
-  const [uploadProgress, setUploadProgress] = useState<{
-    status: 'idle' | 'processing' | 'completed';
-    stepIndex: number;
-    message?: string;
-  }>({
-    status: 'idle',
-    stepIndex: 0
-  });
-
-  const pipelineSteps = [
-    'Document Upload & SHA-256 Hash Check',
-    'Text Extraction (PyMuPDF / docx parser)',
-    'Deterministic Rule Parsing (Regex Emails, URLs, Phones)',
-    'Gemini AI Structured Extraction (Pydantic Schema)',
-    'Reconciliation & Provenance Tagging'
+  const pipelineStages = [
+    '1. Uploading file & computing SHA-256 hash',
+    '2. Extracting raw document text (PyMuPDF / python-docx)',
+    '3. Running deterministic regex rules (Emails, Phones, URLs)',
+    '4. Google Gemini AI analyzing structured experience & skills',
+    '5. Fact reconciliation & provenance tagging'
   ];
 
-  const handleSimulateUpload = async () => {
-    setUploadProgress({ status: 'processing', stepIndex: 1, message: 'Uploading document...' });
-
-    // If real file selected and user has token or wants to test live API
-    if (selectedFile) {
+  // Check if candidate already has a profile saved in DB
+  useEffect(() => {
+    const loadExistingProfile = async () => {
       try {
-        setUploadProgress({ status: 'processing', stepIndex: 2, message: 'PyMuPDF extracting document text...' });
-        const res = await api.uploadResume(selectedFile);
-        
-        setUploadProgress({ status: 'processing', stepIndex: 3, message: 'Deterministic regex matching...' });
-        await new Promise(r => setTimeout(r, 600));
-
-        setUploadProgress({ status: 'processing', stepIndex: 4, message: 'Gemini AI structured synthesis...' });
-        const review = await api.getExtractionReview(res.id);
-
-        if (review && review.reconciled_data) {
-          const rec = review.reconciled_data;
-          if (rec.personal_information?.full_name) {
-            setFullName(rec.personal_information.full_name);
+        await api.ensureCandidateAuth();
+        const existing = await api.getMyProfile();
+        if (existing) {
+          if (existing.full_name) setFullName(existing.full_name);
+          if (existing.headline) setHeadline(existing.headline);
+          if (existing.total_years_experience) setTotalYears(existing.total_years_experience);
+          if (existing.location) {
+            if (existing.location.city) setCity(existing.location.city);
+            if (existing.location.country) setCountry(existing.location.country);
+            if (existing.location.latitude) setLatitude(existing.location.latitude);
+            if (existing.location.longitude) setLongitude(existing.location.longitude);
           }
-          if (rec.skills && rec.skills.length > 0) {
-            setSkills(rec.skills.map((s: any) => s.original_name || s.normalized_name));
+          if (existing.skills && existing.skills.length > 0) {
+            setSkills(existing.skills.map((s) => s.normalized_name || s.original_name));
           }
         }
-
-        setUploadProgress({ status: 'completed', stepIndex: 5, message: 'Reconciliation complete!' });
-        setStep(3);
-        return;
       } catch (err) {
-        console.warn('Live upload API fallback to simulated pipeline:', err);
+        // No existing profile or guest
       }
-    }
-
-    // Fallback simulation timer for instant offline testing
-    setTimeout(() => setUploadProgress({ status: 'processing', stepIndex: 2 }), 700);
-    setTimeout(() => setUploadProgress({ status: 'processing', stepIndex: 3 }), 1400);
-    setTimeout(() => setUploadProgress({ status: 'processing', stepIndex: 4 }), 2100);
-    setTimeout(() => {
-      setUploadProgress({ status: 'completed', stepIndex: 5 });
-      setStep(3);
-    }, 2800);
-  };
+    };
+    loadExistingProfile();
+  }, []);
 
   const handleAddSkill = (e: React.FormEvent) => {
     e.preventDefault();
@@ -100,12 +76,162 @@ export const Flow1_ProfileForm: React.FC<Flow1Props> = ({ onConfirmProfile }) =>
     }
   };
 
+  const handleRemoveSkill = (skillToRemove: string) => {
+    setSkills(skills.filter((s) => s !== skillToRemove));
+  };
+
+  // REAL Method B CV Upload & Gemini Extraction
+  const handleRealUploadAndScan = async () => {
+    if (!selectedFile) {
+      setErrorMessage('Please select a resume file (.pdf, .docx, or .doc) first.');
+      return;
+    }
+
+    setIsProcessing(true);
+    setErrorMessage(null);
+    setPipelineStepIndex(1);
+    setPipelineMessage('Authenticating and uploading document...');
+
+    try {
+      await api.ensureCandidateAuth();
+      
+      setPipelineStepIndex(2);
+      setPipelineMessage('Extracting document text with PyMuPDF / python-docx...');
+      const uploadRes = await api.uploadResume(selectedFile);
+      setUploadedResumeId(uploadRes.id);
+
+      setPipelineStepIndex(3);
+      setPipelineMessage('Executing deterministic regex rules and Gemini AI structured extraction...');
+      
+      // Wait for extraction review
+      const review = await api.getExtractionReview(uploadRes.id);
+      setPipelineStepIndex(5);
+      setPipelineMessage('Extraction completed successfully!');
+
+      if (review && review.reconciled_data) {
+        setExtractionData(review.reconciled_data);
+        const rec = review.reconciled_data;
+        if (rec.personal_information?.full_name) {
+          setFullName(rec.personal_information.full_name);
+        }
+        if (rec.personal_information?.city) {
+          setCity(rec.personal_information.city);
+        }
+        if (rec.professional_information?.headline) {
+          setHeadline(rec.professional_information.headline);
+        } else if (rec.professional_information?.current_title) {
+          setHeadline(rec.professional_information.current_title);
+        }
+        if (rec.professional_information?.estimated_total_experience_years) {
+          setTotalYears(rec.professional_information.estimated_total_experience_years);
+        }
+        if (rec.skills && rec.skills.length > 0) {
+          setSkills(rec.skills.map((s) => s.original_name));
+        }
+      }
+
+      // Automatically advance to Step 3 Review
+      setTimeout(() => {
+        setIsProcessing(false);
+        setStep(3);
+      }, 800);
+
+    } catch (err: any) {
+      console.error('Extraction error:', err);
+      setIsProcessing(false);
+      setErrorMessage(err.message || 'Failed to extract text from document. Please ensure the file is a valid PDF or Word document.');
+    }
+  };
+
+  // Confirm and Commit Authoritative Facts to PostgreSQL Database
+  const handleConfirmAndPersist = async () => {
+    setIsProcessing(true);
+    setErrorMessage(null);
+    try {
+      await api.ensureCandidateAuth();
+
+      // If this was from an uploaded CV
+      if (uploadedResumeId && extractionData) {
+        // Update extraction data with any edits candidate made
+        const updatedExtraction: ResumeExtractionResult = {
+          ...extractionData,
+          personal_information: {
+            ...extractionData.personal_information,
+            full_name: fullName,
+            city: city,
+          },
+          professional_information: {
+            ...extractionData.professional_information,
+            headline: headline,
+            current_title: headline,
+            estimated_total_experience_years: totalYears,
+          },
+        };
+
+        await api.confirmExtraction(uploadedResumeId, updatedExtraction);
+      } else {
+        // Manual entry confirmation
+        await api.updateProfile({
+          full_name: fullName,
+          headline: headline,
+          total_years_experience: totalYears,
+          profile_visibility: visibility.startsWith('Anonymous') ? 'anonymous' : 'public',
+        });
+
+        await api.setLocation({
+          city,
+          country,
+          latitude,
+          longitude,
+        });
+
+        // Add skills
+        for (const s of skills) {
+          try {
+            await api.addSkill(s, 'Core Skills', totalYears || 2);
+          } catch {
+            // ignore duplicate
+          }
+        }
+
+        // Trigger persona synthesis
+        try {
+          await api.regeneratePersona();
+        } catch {
+          // handled
+        }
+      }
+
+      setIsProcessing(false);
+      // Navigate to Flow 2 ("Personal Find")
+      onConfirmProfile();
+    } catch (err: any) {
+      setIsProcessing(false);
+      setErrorMessage(err.message || 'Failed to persist profile to database.');
+    }
+  };
+
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '32px' }}>
       {/* Left Column: Form & Stepper */}
       <div>
-        {/* Method Toggle Buttons (Neumorphic segmented pills) */}
+        {/* Method Toggle Buttons */}
         <div style={{ display: 'flex', gap: '16px', marginBottom: '24px' }}>
+          <button 
+            type="button"
+            onClick={() => setActiveMethod('upload')}
+            className={`neu-btn-secondary ${activeMethod === 'upload' ? 'active-pill' : ''}`}
+            style={{ 
+              flex: 1, 
+              padding: '14px', 
+              borderRadius: '12px', 
+              background: activeMethod === 'upload' ? '#eff6ff' : '#ffffff', 
+              borderColor: activeMethod === 'upload' ? '#2563eb' : '#cbd5e1', 
+              fontWeight: '700' 
+            }}
+          >
+            📄 Method B: Upload CV / Resume (Word & PDF)
+          </button>
           <button 
             type="button"
             onClick={() => setActiveMethod('manual')}
@@ -121,30 +247,15 @@ export const Flow1_ProfileForm: React.FC<Flow1Props> = ({ onConfirmProfile }) =>
           >
             ✍️ Method A: Manual Profile Entry
           </button>
-          <button 
-            type="button"
-            onClick={() => setActiveMethod('upload')}
-            className={`neu-btn-secondary ${activeMethod === 'upload' ? 'active-pill' : ''}`}
-            style={{ 
-              flex: 1, 
-              padding: '14px', 
-              borderRadius: '12px', 
-              background: activeMethod === 'upload' ? '#eff6ff' : '#ffffff', 
-              borderColor: activeMethod === 'upload' ? '#2563eb' : '#cbd5e1', 
-              fontWeight: '700' 
-            }}
-          >
-            📄 Method B: Upload CV / Resume
-          </button>
         </div>
 
-        {/* Cisco-Style Step Header (Image 2) */}
+        {/* Cisco-Style Step Header */}
         <div className="neu-card" style={{ marginBottom: '24px', padding: '20px 28px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             {[
-              { num: 1, label: 'Identity & Location' },
-              { num: 2, label: 'Experience & Skills' },
-              { num: 3, label: 'Review & Confirm' }
+              { num: 1, label: activeMethod === 'upload' ? 'Upload Document' : 'Identity & Location' },
+              { num: 2, label: activeMethod === 'upload' ? 'Extraction Pipeline' : 'Experience & Skills' },
+              { num: 3, label: 'Review & Persist' }
             ].map((s) => (
               <div 
                 key={s.num} 
@@ -176,11 +287,124 @@ export const Flow1_ProfileForm: React.FC<Flow1Props> = ({ onConfirmProfile }) =>
           </div>
         </div>
 
-        {/* METHOD A: MANUAL ENTRY FORM */}
+        {errorMessage && (
+          <div style={{ 
+            background: '#fef2f2', 
+            border: '1.5px solid #ef4444', 
+            borderRadius: '10px', 
+            padding: '14px 18px', 
+            color: '#b91c1c', 
+            fontSize: '13px', 
+            fontWeight: '600', 
+            marginBottom: '20px' 
+          }}>
+            ⚠️ {errorMessage}
+          </div>
+        )}
+
+        {/* METHOD B: REAL RESUME UPLOAD (PDF / DOCX / DOC) */}
+        {activeMethod === 'upload' && step !== 3 && (
+          <div className="neu-card">
+            <h2 className="title-lg">Resume Ingestion & Real Text Extraction</h2>
+            <p className="text-subtitle">
+              Drop your real CV document. Supported formats: <b>.PDF, .DOCX, and .DOC (Word)</b>. 
+              Extraction runs via PyMuPDF and python-docx, followed by Google Gemini AI structured output.
+            </p>
+
+            <input 
+              type="file" 
+              ref={fileInputRef} 
+              style={{ display: 'none' }} 
+              accept=".pdf,.docx,.doc,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword"
+              onChange={(e) => {
+                if (e.target.files && e.target.files[0]) {
+                  setSelectedFile(e.target.files[0]);
+                  setErrorMessage(null);
+                }
+              }}
+            />
+
+            <div 
+              style={{
+                border: '2.5px dashed',
+                borderColor: selectedFile ? '#10b981' : '#94a3b8',
+                borderRadius: '16px',
+                padding: '44px 24px',
+                textAlign: 'center',
+                background: selectedFile ? '#f0fdf4' : '#f8fafc',
+                cursor: 'pointer',
+                marginBottom: '24px'
+              }}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <div style={{ fontSize: '48px', marginBottom: '12px' }}>
+                {selectedFile ? (selectedFile.name.endsWith('.pdf') ? '📄' : '📝') : '📂'}
+              </div>
+              <h3 style={{ fontSize: '18px', fontWeight: '700', color: '#0f172a' }}>
+                {selectedFile ? selectedFile.name : 'Click to select or drag & drop your CV file'}
+              </h3>
+              <p style={{ fontSize: '13px', color: '#64748b', marginTop: '6px' }}>
+                {selectedFile 
+                  ? `${(selectedFile.size / 1024).toFixed(1)} KB • Click button below to run real extraction`
+                  : 'Supported formats: Word (.docx, .doc) & PDF (.pdf) — Max 10MB'}
+              </p>
+            </div>
+
+            {isProcessing && (
+              <div style={{ background: '#ffffff', borderRadius: '12px', padding: '20px', border: '1px solid #cbd5e1', marginBottom: '20px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
+                  <span style={{ fontSize: '18px' }}>⏳</span>
+                  <h4 style={{ fontSize: '14px', fontWeight: '700', color: '#2563eb', margin: 0 }}>
+                    {pipelineMessage || 'Processing CV with live AI extraction pipeline...'}
+                  </h4>
+                </div>
+                {pipelineStages.map((pStep, idx) => (
+                  <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '10px' }}>
+                    <span style={{
+                      width: '24px', 
+                      height: '24px', 
+                      borderRadius: '50%',
+                      background: pipelineStepIndex > idx ? '#047857' : pipelineStepIndex === idx + 1 ? '#2563eb' : '#e2e8f0',
+                      color: '#ffffff', 
+                      fontSize: '12px', 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      justifyContent: 'center', 
+                      fontWeight: '700'
+                    }}>
+                      {pipelineStepIndex > idx ? '✓' : idx + 1}
+                    </span>
+                    <span style={{ 
+                      fontSize: '13px', 
+                      color: pipelineStepIndex >= idx + 1 ? '#0f172a' : '#94a3b8', 
+                      fontWeight: pipelineStepIndex === idx + 1 ? '700' : '400' 
+                    }}>
+                      {pStep}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button 
+                type="button"
+                className="neu-btn-primary" 
+                onClick={handleRealUploadAndScan}
+                disabled={!selectedFile || isProcessing}
+                style={{ opacity: !selectedFile || isProcessing ? 0.6 : 1, cursor: !selectedFile || isProcessing ? 'not-allowed' : 'pointer' }}
+              >
+                {isProcessing ? 'Extracting Real Facts...' : '⚡ Scan & Extract CV Facts'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* METHOD A: MANUAL PROFILE ENTRY */}
         {activeMethod === 'manual' && step === 1 && (
           <div className="neu-card">
             <h2 className="title-lg">1. Identity & Geocoding</h2>
-            <p className="text-subtitle">Enter authoritative personal data for recruiter discovery and PostGIS distance queries.</p>
+            <p className="text-subtitle">Enter your real details for recruiter discovery and PostGIS distance queries.</p>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
               <div className="form-group">
@@ -189,6 +413,7 @@ export const Flow1_ProfileForm: React.FC<Flow1Props> = ({ onConfirmProfile }) =>
                   className="neu-input" 
                   value={fullName} 
                   onChange={(e) => setFullName(e.target.value)} 
+                  placeholder="Enter your full name"
                 />
               </div>
               <div className="form-group">
@@ -197,6 +422,7 @@ export const Flow1_ProfileForm: React.FC<Flow1Props> = ({ onConfirmProfile }) =>
                   className="neu-input" 
                   value={headline} 
                   onChange={(e) => setHeadline(e.target.value)} 
+                  placeholder="e.g. Full Stack Engineer / AI Specialist"
                 />
               </div>
             </div>
@@ -236,9 +462,8 @@ export const Flow1_ProfileForm: React.FC<Flow1Props> = ({ onConfirmProfile }) =>
               </div>
             </div>
 
-            {/* Quick Coordinate Presets */}
             <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
-              <span style={{ fontSize: '12px', fontWeight: '600', color: '#64748b' }}>PostGIS Presets:</span>
+              <span style={{ fontSize: '12px', fontWeight: '600', color: '#64748b' }}>Presets:</span>
               <button
                 type="button"
                 className="badge-pill badge-blue"
@@ -280,22 +505,43 @@ export const Flow1_ProfileForm: React.FC<Flow1Props> = ({ onConfirmProfile }) =>
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '24px' }}>
-              <button className="neu-btn-primary" onClick={() => setStep(2)}>Continue to Skills &rarr;</button>
+              <button 
+                type="button"
+                className="neu-btn-primary" 
+                onClick={() => setStep(2)}
+                disabled={!fullName.trim()}
+              >
+                Continue to Skills &rarr;
+              </button>
             </div>
           </div>
         )}
 
+        {/* METHOD A: SKILLS & EXPERIENCE */}
         {activeMethod === 'manual' && step === 2 && (
           <div className="neu-card">
             <h2 className="title-lg">2. Availability & Skills Matrix</h2>
-            <p className="text-subtitle">Specify verified competencies for deterministic recruiter filtering.</p>
+            <p className="text-subtitle">Add the technical proficiencies and experience you want recruiters to discover.</p>
+
+            <div className="form-group">
+              <label className="form-label">Total Years of Experience</label>
+              <input 
+                type="number"
+                min="0"
+                max="50"
+                className="neu-input"
+                style={{ maxWidth: '140px' }}
+                value={totalYears}
+                onChange={(e) => setTotalYears(Number(e.target.value))}
+              />
+            </div>
 
             <div className="form-group">
               <label className="form-label">Add Technical Skills</label>
               <form onSubmit={handleAddSkill} style={{ display: 'flex', gap: '12px' }}>
                 <input 
                   className="neu-input" 
-                  placeholder="e.g. PyTorch, Kubernetes, Go" 
+                  placeholder="e.g. Python, FastAPI, Docker, React, AWS..." 
                   value={newSkill} 
                   onChange={(e) => setNewSkill(e.target.value)} 
                 />
@@ -303,108 +549,30 @@ export const Flow1_ProfileForm: React.FC<Flow1Props> = ({ onConfirmProfile }) =>
               </form>
             </div>
 
-            {/* Skill Tags */}
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginBottom: '24px' }}>
-              {skills.map(s => (
-                <span key={s} style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: '#e2e8f0', padding: '6px 14px', borderRadius: '20px', fontWeight: '600', fontSize: '13px' }}>
-                  {s}
-                  <span 
-                    style={{ cursor: 'pointer', color: '#64748b' }} 
-                    onClick={() => setSkills(skills.filter(item => item !== s))}
-                  >
-                    &times;
+              {skills.length > 0 ? (
+                skills.map(s => (
+                  <span key={s} style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1d4ed8', padding: '6px 14px', borderRadius: '20px', fontWeight: '600', fontSize: '13px' }}>
+                    {s}
+                    <span 
+                      style={{ cursor: 'pointer', color: '#ef4444', fontWeight: '800' }} 
+                      onClick={() => handleRemoveSkill(s)}
+                    >
+                      &times;
+                    </span>
                   </span>
-                </span>
-              ))}
+                ))
+              ) : (
+                <p style={{ fontSize: '13px', color: '#94a3b8', fontStyle: 'italic' }}>
+                  No skills added yet. Type a skill name above and press + Add.
+                </p>
+              )}
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '24px' }}>
-              <button className="neu-btn-secondary" onClick={() => setStep(1)}>&larr; Back</button>
-              <button className="neu-btn-primary" onClick={() => setStep(3)}>Proceed to Review &rarr;</button>
+              <button type="button" className="neu-btn-secondary" onClick={() => setStep(1)}>&larr; Back</button>
+              <button type="button" className="neu-btn-primary" onClick={() => setStep(3)}>Proceed to Review &rarr;</button>
             </div>
-          </div>
-        )}
-
-        {/* METHOD B: UPLOAD CV DROPZONE & PIPELINE */}
-        {activeMethod === 'upload' && step !== 3 && (
-          <div className="neu-card">
-            <h2 className="title-lg">Resume Ingestion Engine</h2>
-            <p className="text-subtitle">Drop your PDF/Docx. Our deterministic regex rules and Gemini AI parser will extract your profile facts automatically.</p>
-
-            <input 
-              type="file" 
-              ref={fileInputRef} 
-              style={{ display: 'none' }} 
-              accept=".pdf,.docx"
-              onChange={(e) => {
-                if (e.target.files && e.target.files[0]) {
-                  setSelectedFile(e.target.files[0]);
-                }
-              }}
-            />
-
-            <div 
-              style={{
-                border: '2.5px dashed #94a3b8',
-                borderRadius: '16px',
-                padding: '48px 24px',
-                textAlign: 'center',
-                background: selectedFile ? '#f0fdf4' : '#f8fafc',
-                borderColor: selectedFile ? '#10b981' : '#94a3b8',
-                cursor: 'pointer',
-                marginBottom: '24px'
-              }}
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <div style={{ fontSize: '48px', marginBottom: '12px' }}>
-                {selectedFile ? '📄' : '📂'}
-              </div>
-              <h3 style={{ fontSize: '18px', fontWeight: '700', color: '#0f172a' }}>
-                {selectedFile ? selectedFile.name : 'Drag & Drop your Resume (.PDF, .DOCX)'}
-              </h3>
-              <p style={{ fontSize: '13px', color: '#64748b', marginTop: '6px' }}>
-                {selectedFile 
-                  ? `${(selectedFile.size / 1024).toFixed(1)} KB ready for parsing`
-                  : 'Max file size 10MB. Text extraction and SHA-256 deduplication run locally.'}
-              </p>
-              <button 
-                type="button"
-                className="neu-btn-primary" 
-                style={{ marginTop: '18px' }} 
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleSimulateUpload();
-                }}
-              >
-                ⚡ Start Ingestion Pipeline
-              </button>
-            </div>
-
-            {uploadProgress.status !== 'idle' && (
-              <div style={{ background: '#ffffff', borderRadius: '12px', padding: '20px', border: '1px solid #cbd5e1' }}>
-                <h4 style={{ fontSize: '14px', fontWeight: '700', marginBottom: '16px', color: '#0f172a' }}>
-                  Extraction Pipeline Status: {uploadProgress.message || ''}
-                </h4>
-                {pipelineSteps.map((pStep, idx) => (
-                  <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
-                    <span style={{
-                      width: '24px', height: '24px', borderRadius: '50%',
-                      background: uploadProgress.stepIndex > idx ? '#047857' : uploadProgress.stepIndex === idx ? '#2563eb' : '#e2e8f0',
-                      color: '#ffffff', fontSize: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '700'
-                    }}>
-                      {uploadProgress.stepIndex > idx ? '✓' : idx + 1}
-                    </span>
-                    <span style={{ 
-                      fontSize: '13px', 
-                      color: uploadProgress.stepIndex >= idx ? '#0f172a' : '#94a3b8', 
-                      fontWeight: uploadProgress.stepIndex === idx ? '700' : '400' 
-                    }}>
-                      {pStep}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
         )}
 
@@ -412,61 +580,118 @@ export const Flow1_ProfileForm: React.FC<Flow1Props> = ({ onConfirmProfile }) =>
         {step === 3 && (
           <div className="neu-card">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <h2 className="title-lg" style={{ margin: 0 }}>Fact Reconciliation & Provenance</h2>
-              <span className="badge-pill badge-success">✓ Schema Validated</span>
+              <h2 className="title-lg" style={{ margin: 0 }}>Review Extracted Profile Facts</h2>
+              <span className="badge-pill badge-success">✓ Ready for Database</span>
             </div>
-            <p className="text-subtitle">Review extracted fields and their source of truth before persisting to PostgreSQL.</p>
+            <p className="text-subtitle">
+              Verify your information before committing authoritative records to PostgreSQL and generating your Gemini AI persona.
+            </p>
 
             <div style={{ display: 'grid', gap: '16px' }}>
               <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '10px', border: '1px solid #cbd5e1' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
                   <span className="form-label">Full Name</span>
-                  <span className="provenance-tag">[Rule: Regex Email Match]</span>
+                  <span className="provenance-tag">
+                    {extractionData?.personal_information?.full_name ? '[Extracted from CV]' : '[Manual Input]'}
+                  </span>
                 </div>
                 <input 
                   className="neu-input" 
                   value={fullName} 
                   onChange={(e) => setFullName(e.target.value)} 
+                  placeholder="Candidate Full Name"
                 />
               </div>
 
-              <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '10px', border: '1px solid #cbd5e1' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
-                  <span className="form-label">Calculated Seniority & Title</span>
-                  <span className="provenance-tag">[AI: Gemini 1.5 Synthesis (96% Confidence)]</span>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '10px', border: '1px solid #cbd5e1' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                    <span className="form-label">Professional Headline</span>
+                    <span className="provenance-tag">[Gemini AI Title]</span>
+                  </div>
+                  <input 
+                    className="neu-input" 
+                    value={headline} 
+                    onChange={(e) => setHeadline(e.target.value)} 
+                    placeholder="e.g. Lead Systems Engineer"
+                  />
                 </div>
-                <input 
-                  className="neu-input" 
-                  value={headline} 
-                  onChange={(e) => setHeadline(e.target.value)} 
-                />
+
+                <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '10px', border: '1px solid #cbd5e1' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                    <span className="form-label">Total Experience</span>
+                    <span className="provenance-tag">[Years]</span>
+                  </div>
+                  <input 
+                    type="number"
+                    className="neu-input" 
+                    value={totalYears} 
+                    onChange={(e) => setTotalYears(Number(e.target.value))} 
+                  />
+                </div>
               </div>
 
+              {/* Real Extracted Skills with Provenance */}
               <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '10px', border: '1px solid #cbd5e1' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
-                  <span className="form-label">Extracted Skills</span>
-                  <span className="provenance-tag">[Combined: Rule + AI Taxonomy]</span>
+                  <span className="form-label">Skills Taxonomy</span>
+                  <span className="provenance-tag">
+                    {extractionData ? `[${extractionData.skills.length} Extracted Skills]` : `[${skills.length} Skills]`}
+                  </span>
                 </div>
                 <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                  {skills.map(s => <span key={s} className="badge-pill badge-blue">{s}</span>)}
+                  {skills.length > 0 ? (
+                    skills.map(s => <span key={s} className="badge-pill badge-blue">{s}</span>)
+                  ) : (
+                    <span style={{ color: '#94a3b8', fontSize: '12px' }}>No skills captured yet.</span>
+                  )}
                 </div>
               </div>
+
+              {/* Experience list if available from real CV */}
+              {extractionData?.experience && extractionData.experience.length > 0 && (
+                <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '10px', border: '1px solid #cbd5e1' }}>
+                  <span className="form-label" style={{ marginBottom: '8px' }}>
+                    Extracted Work History ({extractionData.experience.length} Roles):
+                  </span>
+                  <div style={{ display: 'grid', gap: '8px' }}>
+                    {extractionData.experience.map((exp, idx) => (
+                      <div key={idx} style={{ background: '#ffffff', padding: '10px 14px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px' }}>
+                        <span style={{ fontWeight: '700', color: '#0f172a' }}>{exp.original_job_title}</span>
+                        {exp.company && <span style={{ color: '#2563eb' }}> &bull; {exp.company}</span>}
+                        {exp.start_date && <span style={{ color: '#64748b', fontSize: '11px', marginLeft: '8px' }}>({exp.start_date} - {exp.end_date || 'Present'})</span>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '28px' }}>
-              <button className="neu-btn-secondary" onClick={() => setStep(2)}>&larr; Back</button>
-              <button className="neu-btn-primary" onClick={onConfirmProfile}>
-                💾 Confirm & Persist to Database
+              <button 
+                type="button" 
+                className="neu-btn-secondary" 
+                onClick={() => setStep(activeMethod === 'upload' ? 1 : 2)}
+              >
+                &larr; Back
+              </button>
+              <button 
+                type="button" 
+                className="neu-btn-primary" 
+                onClick={handleConfirmAndPersist}
+                disabled={isProcessing}
+              >
+                {isProcessing ? 'Persisting to Database...' : '💾 Confirm & Persist to Database'}
               </button>
             </div>
           </div>
         )}
       </div>
 
-      {/* Right Column Context Card (Image 2 Style) */}
+      {/* Right Column Context Card */}
       <div>
         <div className="neu-card" style={{ position: 'sticky', top: '24px' }}>
-          <h3 className="title-md" style={{ marginBottom: '8px' }}>Profile Quality Engine</h3>
+          <h3 className="title-md" style={{ marginBottom: '8px' }}>Ingestion Engine Status</h3>
           <p style={{ fontSize: '13px', color: '#64748b', lineHeight: 1.6, marginBottom: '20px' }}>
             Authoritative candidate profiles require geocoded location coordinates for PostGIS spatial searches and confirmed skill tags.
           </p>
@@ -477,8 +702,8 @@ export const Flow1_ProfileForm: React.FC<Flow1Props> = ({ onConfirmProfile }) =>
             </p>
           </div>
           <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '16px' }}>
-            <span style={{ fontSize: '12px', color: '#64748b' }}>Authoritative Store:</span>
-            <div style={{ fontWeight: '700', fontSize: '13px', color: '#0f172a' }}>PostgreSQL + PostGIS Extension</div>
+            <span style={{ fontSize: '12px', color: '#64748b' }}>Supported Ingestion:</span>
+            <div style={{ fontWeight: '700', fontSize: '13px', color: '#0f172a' }}>Word (.docx, .doc) & PDF (.pdf)</div>
           </div>
         </div>
       </div>
