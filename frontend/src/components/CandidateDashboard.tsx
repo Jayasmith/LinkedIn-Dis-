@@ -5,20 +5,19 @@ import type {
   CandidatePersona,
   ResumeExtractionResult,
 } from '../types';
+import { CandidatePersonaCard } from './CandidatePersonaCard';
 import {
   UploadCloud,
   CheckCircle2,
   Sparkles,
-  Edit3,
   Plus,
   Trash2,
   MapPin,
-  Briefcase,
-  GraduationCap,
-  Globe,
   RefreshCw,
-  Eye,
   Info,
+  ArrowRight,
+  ArrowLeft,
+  Cpu,
 } from 'lucide-react';
 
 interface CandidateDashboardProps {
@@ -30,35 +29,54 @@ export const CandidateDashboard: React.FC<CandidateDashboardProps> = ({ onOpenAu
   const [persona, setPersona] = useState<CandidatePersona | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeSubTab, setActiveSubTab] = useState<'profile' | 'upload' | 'review'>('profile');
 
-  // Manual editing state
-  const [isEditing, setIsEditing] = useState<boolean>(false);
+  // Cisco-style Wizard Stepper State: 1: Basics, 2: Functional Areas & Skills, 3: Resume Upload, 4: Reconciled Review
+  const [currentStep, setCurrentStep] = useState<number>(1);
+
+  // Step 1: Basics & Location
   const [fullName, setFullName] = useState<string>('');
   const [headline, setHeadline] = useState<string>('');
   const [bio, setBio] = useState<string>('');
-  const [totalYears, setTotalYears] = useState<number>(0);
-  const [city, setCity] = useState<string>('');
-  const [country, setCountry] = useState<string>('');
-  const [latitude, setLatitude] = useState<number | undefined>(undefined);
-  const [longitude, setLongitude] = useState<number | undefined>(undefined);
+  const [totalYears, setTotalYears] = useState<number>(4);
+  const [city, setCity] = useState<string>('Colombo');
+  const [country, setCountry] = useState<string>('Sri Lanka');
+  const [latitude, setLatitude] = useState<number | undefined>(6.9271);
+  const [longitude, setLongitude] = useState<number | undefined>(79.8612);
   const [availability, setAvailability] = useState<string>('available_now');
   const [visibility, setVisibility] = useState<'public' | 'anonymous' | 'private'>('public');
 
-  // Skills input state
+  // Step 2: Functional Areas (Cisco Pill Toggles) & Skills
+  const [selectedFunctionalAreas, setSelectedFunctionalAreas] = useState<string[]>([
+    'Backend Engineering',
+    'AI & Machine Learning',
+  ]);
   const [newSkill, setNewSkill] = useState<string>('');
-  const [newSkillYears, setNewSkillYears] = useState<number>(1);
+  const [newSkillYears, setNewSkillYears] = useState<number>(3);
 
-  // Resume Upload State
+  // Step 3: Resume Upload
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState<boolean>(false);
-  const [uploadProgressState, setUploadProgressState] = useState<string | null>(null);
+  const [pipelineState, setPipelineState] = useState<string | null>(null);
   const [uploadedResumeId, setUploadedResumeId] = useState<string | null>(null);
   const [extractionData, setExtractionData] = useState<ResumeExtractionResult | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Persona regeneration state
-  const [isRegeneratingPersona, setIsRegeneratingPersona] = useState<boolean>(false);
+  const functionalOptions = [
+    { id: 'Backend Engineering', label: 'Backend Engineering', icon: '⚙️' },
+    { id: 'AI & Machine Learning', label: 'AI & Machine Learning', icon: '🧠' },
+    { id: 'Cloud & DevOps', label: 'Cloud & DevOps', icon: '☁️' },
+    { id: 'Frontend / Web', label: 'Frontend / Web', icon: '💻' },
+    { id: 'Database Architecture', label: 'Database Architecture', icon: '🗄️' },
+    { id: 'Full Stack Systems', label: 'Full Stack Systems', icon: '⚡' },
+  ];
+
+  const toggleFunctionalArea = (area: string) => {
+    if (selectedFunctionalAreas.includes(area)) {
+      setSelectedFunctionalAreas(selectedFunctionalAreas.filter((a) => a !== area));
+    } else {
+      setSelectedFunctionalAreas([...selectedFunctionalAreas, area]);
+    }
+  };
 
   const fetchProfileAndPersona = async () => {
     setLoading(true);
@@ -69,11 +87,11 @@ export const CandidateDashboard: React.FC<CandidateDashboardProps> = ({ onOpenAu
       setFullName(p.full_name || '');
       setHeadline(p.headline || '');
       setBio(p.bio || '');
-      setTotalYears(p.total_years_experience || 0);
-      setCity(p.location?.city || '');
-      setCountry(p.location?.country || '');
-      setLatitude(p.location?.latitude);
-      setLongitude(p.location?.longitude);
+      setTotalYears(p.total_years_experience || 4);
+      setCity(p.location?.city || 'Colombo');
+      setCountry(p.location?.country || 'Sri Lanka');
+      setLatitude(p.location?.latitude ?? 6.9271);
+      setLongitude(p.location?.longitude ?? 79.8612);
       setAvailability(p.availability_status || 'available_now');
       setVisibility(p.profile_visibility || 'public');
 
@@ -81,12 +99,11 @@ export const CandidateDashboard: React.FC<CandidateDashboardProps> = ({ onOpenAu
         const pers = await api.getPersona();
         setPersona(pers);
       } catch (err) {
-        // Persona might not yet be generated
         setPersona(null);
       }
     } catch (err: any) {
       if (err.message && err.message.includes('401')) {
-        setError('Please sign in to view and manage your candidate profile.');
+        setError('Please sign in to view and configure your candidate profile.');
       } else {
         setError(err.message || 'Failed to load profile');
       }
@@ -99,9 +116,9 @@ export const CandidateDashboard: React.FC<CandidateDashboardProps> = ({ onOpenAu
     fetchProfileAndPersona();
   }, []);
 
-  const handleSaveProfile = async () => {
+  const handleSaveStep1 = async () => {
     try {
-      const updated = await api.updateProfile({
+      await api.updateProfile({
         full_name: fullName,
         headline,
         bio,
@@ -118,12 +135,9 @@ export const CandidateDashboard: React.FC<CandidateDashboardProps> = ({ onOpenAu
           longitude: longitude ? Number(longitude) : undefined,
         });
       }
-
-      setProfile(updated);
-      setIsEditing(false);
-      await fetchProfileAndPersona();
+      setCurrentStep(2);
     } catch (err: any) {
-      alert(err.message || 'Failed to update profile');
+      alert(err.message || 'Failed to save basic info');
     }
   };
 
@@ -131,9 +145,9 @@ export const CandidateDashboard: React.FC<CandidateDashboardProps> = ({ onOpenAu
     e.preventDefault();
     if (!newSkill.trim()) return;
     try {
-      await api.addSkill(newSkill.trim(), 'General', newSkillYears);
+      await api.addSkill(newSkill.trim(), 'Core Stack', newSkillYears);
       setNewSkill('');
-      setNewSkillYears(1);
+      setNewSkillYears(3);
       await fetchProfileAndPersona();
     } catch (err: any) {
       alert(err.message || 'Failed to add skill');
@@ -159,21 +173,20 @@ export const CandidateDashboard: React.FC<CandidateDashboardProps> = ({ onOpenAu
   const handleUploadResume = async () => {
     if (!selectedFile) return;
     setIsUploading(true);
-    setUploadProgressState('Uploading & validating file...');
+    setPipelineState('1. Uploading & computing SHA-256 hash...');
     try {
-      setUploadProgressState('Extracting raw text (PyMuPDF / python-docx)...');
+      setPipelineState('2. Extracting raw document text with PyMuPDF...');
       const res = await api.uploadResume(selectedFile);
       setUploadedResumeId(res.id);
 
-      setUploadProgressState('Running rule parser & Gemini AI structured extraction...');
-      // Fetch extraction preview
+      setPipelineState('3. Running deterministic regex rules & Gemini AI structured extraction...');
       const review = await api.getExtractionReview(res.id);
       setExtractionData(review.reconciled_data);
-      setActiveSubTab('review');
-      setUploadProgressState(null);
+      setPipelineState(null);
+      setCurrentStep(4);
     } catch (err: any) {
-      alert(err.message || 'Resume processing failed');
-      setUploadProgressState(null);
+      alert(err.message || 'Resume extraction failed');
+      setPipelineState(null);
     } finally {
       setIsUploading(false);
     }
@@ -184,25 +197,22 @@ export const CandidateDashboard: React.FC<CandidateDashboardProps> = ({ onOpenAu
     setLoading(true);
     try {
       await api.confirmExtraction(uploadedResumeId, extractionData);
-      alert('Profile confirmed and updated from resume successfully!');
-      setActiveSubTab('profile');
+      alert('Profile confirmed and committed to PostgreSQL database successfully!');
       await fetchProfileAndPersona();
+      setCurrentStep(1);
     } catch (err: any) {
-      alert(err.message || 'Failed to confirm extraction');
+      alert(err.message || 'Failed to confirm profile');
     } finally {
       setLoading(false);
     }
   };
 
   const handleRegeneratePersona = async () => {
-    setIsRegeneratingPersona(true);
     try {
       const newPersona = await api.regeneratePersona();
       setPersona(newPersona);
     } catch (err: any) {
       alert(err.message || 'Failed to regenerate persona');
-    } finally {
-      setIsRegeneratingPersona(false);
     }
   };
 
@@ -210,646 +220,553 @@ export const CandidateDashboard: React.FC<CandidateDashboardProps> = ({ onOpenAu
     return (
       <div className="text-center py-20">
         <RefreshCw className="animate-spin mx-auto text-blue-600 mb-3" size={32} />
-        <p className="text-slate-600 font-medium">Loading candidate profile...</p>
+        <p className="text-slate-600 font-medium">Connecting to candidate profile...</p>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="glass-card max-w-xl mx-auto p-8 text-center my-12">
-        <div className="w-14 h-14 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto mb-4 border border-blue-200">
+      <div className="elevated-card max-w-lg mx-auto p-8 text-center my-12">
+        <div className="w-14 h-14 rounded-2xl bg-blue-50 text-blue-600 flex-center mx-auto mb-4 border border-blue-200">
           <Info size={28} />
         </div>
-        <h3 className="text-lg font-bold text-slate-800 font-heading mb-2">Access Candidate Portal</h3>
+        <h3 className="text-lg font-bold text-slate-800 font-heading mb-2">Sign In Required</h3>
         <p className="text-slate-600 text-sm mb-6">{error}</p>
         <button onClick={onOpenAuth} className="neu-btn neu-btn-primary mx-auto">
-          Sign In / Register
+          Sign In / Register Demo
         </button>
       </div>
     );
   }
 
   return (
-    <div className="space-y-8 pb-16">
-      {/* Top Banner / Mode Switcher */}
-      <div className="glass-card p-6 flex flex-col md:flex-row items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-black text-slate-900 font-heading">
-            {profile?.full_name || 'My Professional Profile'}
-          </h1>
-          <p className="text-sm text-slate-500 font-medium mt-0.5">
-            {profile?.headline || 'Build your authoritative profile manually or parse your resume'}
-          </p>
+    <div className="space-y-10 pb-20">
+      {/* 1. CISCO-STYLE PROGRESS STEPPER (Image 1 Inspiration) */}
+      <div className="elevated-card p-6">
+        <div className="wizard-stepper">
+          {/* Step 1 */}
+          <div className="step-item" onClick={() => setCurrentStep(1)}>
+            <div className={`step-circle ${currentStep === 1 ? 'active' : currentStep > 1 ? 'completed' : ''}`}>
+              1
+            </div>
+            <span className={`step-label ${currentStep === 1 ? 'active' : ''}`}>
+              Basic details
+            </span>
+          </div>
+          <div className={`step-line ${currentStep > 1 ? 'completed' : ''}`} />
+
+          {/* Step 2 */}
+          <div className="step-item" onClick={() => setCurrentStep(2)}>
+            <div className={`step-circle ${currentStep === 2 ? 'active' : currentStep > 2 ? 'completed' : ''}`}>
+              2
+            </div>
+            <span className={`step-label ${currentStep === 2 ? 'active' : ''}`}>
+              Solutions profile
+            </span>
+          </div>
+          <div className={`step-line ${currentStep > 2 ? 'completed' : ''}`} />
+
+          {/* Step 3 */}
+          <div className="step-item" onClick={() => setCurrentStep(3)}>
+            <div className={`step-circle ${currentStep === 3 ? 'active' : currentStep > 3 ? 'completed' : ''}`}>
+              3
+            </div>
+            <span className={`step-label ${currentStep === 3 ? 'active' : ''}`}>
+              Document Ingestion
+            </span>
+          </div>
+          <div className={`step-line ${currentStep > 3 ? 'completed' : ''}`} />
+
+          {/* Step 4 */}
+          <div className="step-item" onClick={() => setCurrentStep(4)}>
+            <div className={`step-circle ${currentStep === 4 ? 'active' : ''}`}>
+              4
+            </div>
+            <span className={`step-label ${currentStep === 4 ? 'active' : ''}`}>
+              Review details
+            </span>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setActiveSubTab('profile')}
-            className={`neu-btn text-xs font-semibold ${
-              activeSubTab === 'profile' ? 'neu-btn-primary' : 'neu-btn-secondary'
-            }`}
-          >
-            <Edit3 size={14} />
-            <span>Profile Details</span>
-          </button>
-          <button
-            onClick={() => setActiveSubTab('upload')}
-            className={`neu-btn text-xs font-semibold ${
-              activeSubTab === 'upload' ? 'neu-btn-primary' : 'neu-btn-secondary'
-            }`}
-          >
-            <UploadCloud size={14} />
-            <span>Upload Resume</span>
-          </button>
-          {extractionData && (
-            <button
-              onClick={() => setActiveSubTab('review')}
-              className={`neu-btn text-xs font-semibold ${
-                activeSubTab === 'review' ? 'neu-btn-primary' : 'neu-btn-secondary'
-              }`}
-            >
-              <CheckCircle2 size={14} className="text-green-500" />
-              <span>Review Extracted</span>
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* SUBTAB 1: PROFILE OVERVIEW & EDITING */}
-      {activeSubTab === 'profile' && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Main Info Column (2/3) */}
+        {/* STEPPER CONTENT CONTAINER: 2-Column Cisco Layout */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 pt-4">
+          {/* Left Form Area (2 Cols) */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Core Info Card */}
-            <div className="glass-card p-6">
-              <div className="flex-between mb-5">
-                <h3 className="text-base font-bold text-slate-900 font-heading flex items-center gap-2">
-                  <Briefcase size={18} className="text-blue-600" />
-                  <span>General Information</span>
-                </h3>
-                <button
-                  onClick={() => setIsEditing(!isEditing)}
-                  className="neu-btn neu-btn-secondary !py-1.5 !px-3 text-xs"
-                >
-                  {isEditing ? 'Cancel' : 'Edit Profile'}
-                </button>
-              </div>
+            {/* STEP 1: ORGANIZATION / BASIC DETAILS */}
+            {currentStep === 1 && (
+              <div className="space-y-5">
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 font-heading">
+                    Please enter candidate details
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Your foundational identity and geographical location for recruiter matching.
+                  </p>
+                </div>
 
-              {isEditing ? (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">Full Name</label>
-                      <input
-                        type="text"
-                        value={fullName}
-                        onChange={(e) => setFullName(e.target.value)}
-                        className="neu-input"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">Headline</label>
-                      <input
-                        type="text"
-                        value={headline}
-                        onChange={(e) => setHeadline(e.target.value)}
-                        className="neu-input"
-                        placeholder="e.g. Senior Backend Engineer"
-                      />
-                    </div>
-                  </div>
-
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1">Professional Biography</label>
-                    <textarea
-                      rows={3}
-                      value={bio}
-                      onChange={(e) => setBio(e.target.value)}
+                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                      Full Name
+                    </label>
+                    <input
+                      type="text"
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
                       className="neu-input"
-                      placeholder="Brief overview of your background..."
+                      placeholder="e.g. Demuni Jayasmith"
                     />
                   </div>
 
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">Total Exp (Yrs)</label>
-                      <input
-                        type="number"
-                        value={totalYears}
-                        onChange={(e) => setTotalYears(Number(e.target.value))}
-                        className="neu-input"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">Availability</label>
-                      <select
-                        value={availability}
-                        onChange={(e) => setAvailability(e.target.value)}
-                        className="neu-input text-xs"
-                      >
-                        <option value="available_now">Available Now</option>
-                        <option value="open_to_offers">Open to Offers</option>
-                        <option value="not_available">Not Available</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">City</label>
-                      <input
-                        type="text"
-                        value={city}
-                        onChange={(e) => setCity(e.target.value)}
-                        className="neu-input"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">Country</label>
-                      <input
-                        type="text"
-                        value={country}
-                        onChange={(e) => setCountry(e.target.value)}
-                        className="neu-input"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">Latitude (for PostGIS)</label>
-                      <input
-                        type="number"
-                        step="any"
-                        value={latitude ?? ''}
-                        onChange={(e) => setLatitude(e.target.value ? Number(e.target.value) : undefined)}
-                        placeholder="e.g. 6.9271"
-                        className="neu-input text-xs"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">Longitude (for PostGIS)</label>
-                      <input
-                        type="number"
-                        step="any"
-                        value={longitude ?? ''}
-                        onChange={(e) => setLongitude(e.target.value ? Number(e.target.value) : undefined)}
-                        placeholder="e.g. 79.8612"
-                        className="neu-input text-xs"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="flex justify-end pt-2">
-                    <button onClick={handleSaveProfile} className="neu-btn neu-btn-primary !py-2 !px-5 text-xs">
-                      Save Changes
-                    </button>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                      Professional Headline
+                    </label>
+                    <input
+                      type="text"
+                      value={headline}
+                      onChange={(e) => setHeadline(e.target.value)}
+                      className="neu-input"
+                      placeholder="AI Systems Engineer & Backend Architect"
+                    />
                   </div>
                 </div>
-              ) : (
-                <div className="space-y-4">
-                  <p className="text-sm text-slate-600 leading-relaxed">
-                    {profile?.bio || 'No biography provided yet. Add a short summary of your background.'}
-                  </p>
 
-                  <div className="flex flex-wrap gap-4 pt-2 text-xs text-slate-600">
-                    <div className="flex items-center gap-1.5 bg-slate-50 px-2.5 py-1.5 rounded-lg border border-slate-200">
-                      <MapPin size={14} className="text-blue-500" />
-                      <span>{profile?.location?.city ? `${profile.location.city}, ${profile.location.country}` : 'Location unconfigured'}</span>
-                      {profile?.location?.latitude && (
-                        <span className="text-[10px] text-slate-400 font-mono">
-                          ({profile.location.latitude.toFixed(2)}, {profile.location.longitude?.toFixed(2)})
-                        </span>
-                      )}
-                    </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                    Professional Summary / Bio
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={bio}
+                    onChange={(e) => setBio(e.target.value)}
+                    className="neu-input"
+                    placeholder="Provide a concise summary of your engineering philosophy and core strengths..."
+                  />
+                </div>
 
-                    <div className="flex items-center gap-1.5 bg-slate-50 px-2.5 py-1.5 rounded-lg border border-slate-200">
-                      <Briefcase size={14} className="text-purple-500" />
-                      <span>{profile?.total_years_experience || 0} Years Experience</span>
-                    </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                      Primary Location (City)
+                    </label>
+                    <input
+                      type="text"
+                      value={city}
+                      onChange={(e) => setCity(e.target.value)}
+                      className="neu-input"
+                    />
+                  </div>
 
-                    <div className="flex items-center gap-1.5 bg-slate-50 px-2.5 py-1.5 rounded-lg border border-slate-200">
-                      <Globe size={14} className="text-green-500" />
-                      <span className="capitalize">{profile?.availability_status?.replace('_', ' ')}</span>
-                    </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                      Country
+                    </label>
+                    <input
+                      type="text"
+                      value={country}
+                      onChange={(e) => setCountry(e.target.value)}
+                      className="neu-input"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                      Total Experience (Yrs)
+                    </label>
+                    <input
+                      type="number"
+                      value={totalYears}
+                      onChange={(e) => setTotalYears(Number(e.target.value))}
+                      className="neu-input"
+                    />
                   </div>
                 </div>
-              )}
-            </div>
 
-            {/* Skills Card */}
-            <div className="glass-card p-6">
-              <h3 className="text-base font-bold text-slate-900 font-heading mb-4 flex items-center gap-2">
-                <Sparkles size={18} className="text-blue-600" />
-                <span>Skills & Canonical Normalization</span>
-              </h3>
-
-              {/* Add Skill Form */}
-              <form onSubmit={handleAddSkill} className="flex gap-2 mb-4">
-                <input
-                  type="text"
-                  value={newSkill}
-                  onChange={(e) => setNewSkill(e.target.value)}
-                  placeholder="e.g. React.js, FastAPI, Docker..."
-                  className="neu-input text-xs"
-                />
-                <input
-                  type="number"
-                  min="0"
-                  max="40"
-                  value={newSkillYears}
-                  onChange={(e) => setNewSkillYears(Number(e.target.value))}
-                  title="Years"
-                  className="neu-input text-xs w-20 text-center"
-                />
-                <button type="submit" className="neu-btn neu-btn-primary !py-1.5 !px-3 text-xs shrink-0">
-                  <Plus size={14} />
-                  <span>Add</span>
-                </button>
-              </form>
-
-              {/* Skills List */}
-              <div className="flex flex-wrap gap-2">
-                {profile?.skills && profile.skills.length > 0 ? (
-                  profile.skills.map((s) => (
-                    <span key={s.id} className="skill-tag text-xs group">
-                      <span className="font-semibold">{s.normalized_name}</span>
-                      {s.original_name !== s.normalized_name && (
-                        <span className="text-[10px] text-slate-400">({s.original_name})</span>
-                      )}
-                      {s.years_experience ? (
-                        <span className="text-[10px] text-blue-500 font-bold">{s.years_experience}y</span>
-                      ) : null}
+                {/* PostGIS Coordinates Presets */}
+                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
+                  <div className="flex-between mb-2">
+                    <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                      <MapPin size={13} className="text-red-500" />
+                      <span>PostGIS Coordinates (For Radius Discovery)</span>
+                    </span>
+                    <div className="flex gap-1.5">
                       <button
-                        onClick={() => handleRemoveSkill(s.id)}
-                        className="opacity-60 hover:opacity-100 text-red-500 hover:text-red-700 ml-1"
+                        type="button"
+                        onClick={() => {
+                          setLatitude(6.9271);
+                          setLongitude(79.8612);
+                          setCity('Colombo');
+                        }}
+                        className="text-[10px] font-semibold text-blue-600 bg-white px-2 py-0.5 rounded border border-slate-200 hover:bg-blue-50"
                       >
-                        <Trash2 size={12} />
+                        Preset: Colombo
                       </button>
-                    </span>
-                  ))
-                ) : (
-                  <p className="text-xs text-slate-400 italic">No skills listed yet.</p>
-                )}
-              </div>
-            </div>
-
-            {/* Experiences Card */}
-            <div className="glass-card p-6">
-              <h3 className="text-base font-bold text-slate-900 font-heading mb-4 flex items-center gap-2">
-                <Briefcase size={18} className="text-blue-600" />
-                <span>Work Experience</span>
-              </h3>
-              {profile?.experiences && profile.experiences.length > 0 ? (
-                <div className="space-y-4">
-                  {profile.experiences.map((exp) => (
-                    <div key={exp.id} className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
-                      <div className="flex-between mb-1">
-                        <h4 className="text-sm font-bold text-slate-800">{exp.original_job_title}</h4>
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
-                          {exp.normalized_role || 'General'}
-                        </span>
-                      </div>
-                      <p className="text-xs text-slate-600 font-semibold">{exp.company}</p>
-                      {exp.description && (
-                        <p className="text-xs text-slate-500 mt-2 leading-relaxed">{exp.description}</p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-xs text-slate-400 italic">No work experience logged yet.</p>
-              )}
-            </div>
-
-            {/* Education Card */}
-            <div className="glass-card p-6">
-              <h3 className="text-base font-bold text-slate-900 font-heading mb-4 flex items-center gap-2">
-                <GraduationCap size={18} className="text-blue-600" />
-                <span>Education & Qualifications</span>
-              </h3>
-              {profile?.education && profile.education.length > 0 ? (
-                <div className="space-y-3">
-                  {profile.education.map((edu) => (
-                    <div key={edu.id} className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-                      <div className="flex-between">
-                        <h4 className="text-xs font-bold text-slate-800">{edu.original_degree}</h4>
-                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-green-50 text-green-700 border border-green-200">
-                          {edu.normalized_degree_level || 'Higher Ed'}
-                        </span>
-                      </div>
-                      <p className="text-xs text-slate-600 mt-1 font-medium">{edu.institution}</p>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-xs text-slate-400 italic">No education records added yet.</p>
-              )}
-            </div>
-          </div>
-
-          {/* Right Column: Derived Persona Card */}
-          <div className="space-y-6">
-            <div className="glass-card p-6 relative overflow-hidden">
-              <div className="flex-between mb-4">
-                <span className="text-xs font-black uppercase tracking-wider text-blue-600 bg-blue-50 px-2.5 py-1 rounded-full border border-blue-200">
-                  Derived Candidate Persona
-                </span>
-                <button
-                  onClick={handleRegeneratePersona}
-                  disabled={isRegeneratingPersona}
-                  className="neu-btn neu-btn-secondary !p-1.5 rounded-lg text-slate-600 hover:text-blue-600"
-                  title="Regenerate Persona via AI"
-                >
-                  <RefreshCw size={14} className={isRegeneratingPersona ? 'animate-spin' : ''} />
-                </button>
-              </div>
-
-              {persona ? (
-                <div className="space-y-4">
-                  <div>
-                    <h3 className="text-lg font-black text-slate-900 font-heading leading-snug">
-                      {persona.headline}
-                    </h3>
-                    <div className="flex items-center gap-2 mt-2">
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-800 text-white">
-                        {persona.seniority_level}
-                      </span>
-                      <span className="text-xs text-slate-600 font-semibold">
-                        {persona.primary_profession}
-                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setLatitude(7.2906);
+                          setLongitude(80.6337);
+                          setCity('Kandy');
+                        }}
+                        className="text-[10px] font-semibold text-blue-600 bg-white px-2 py-0.5 rounded border border-slate-200 hover:bg-blue-50"
+                      >
+                        Preset: Kandy
+                      </button>
                     </div>
                   </div>
-
-                  <p className="text-xs text-slate-600 leading-relaxed bg-slate-50/60 p-3 rounded-xl border border-slate-200/60">
-                    "{persona.summary}"
-                  </p>
-
-                  <div>
-                    <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                      Key Competencies
-                    </p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {persona.top_skills.map((sk, idx) => (
-                        <span key={idx} className="skill-tag text-[11px]">
-                          {sk}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-
-                  {persona.suggested_roles && persona.suggested_roles.length > 0 && (
-                    <div>
-                      <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                        Suggested Roles
-                      </p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {persona.suggested_roles.map((r, idx) => (
-                          <span key={idx} className="text-[11px] px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 font-semibold border border-purple-200">
-                            {r}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="pt-3 border-t border-slate-100 flex-between text-[11px] text-slate-400">
-                    <span>Generated: {new Date(persona.generated_at).toLocaleDateString()}</span>
-                    <span className="text-green-600 font-semibold flex items-center gap-1">
-                      <CheckCircle2 size={12} /> Searchable
-                    </span>
+                  <div className="grid grid-cols-2 gap-3">
+                    <input
+                      type="number"
+                      step="any"
+                      value={latitude ?? ''}
+                      onChange={(e) => setLatitude(Number(e.target.value))}
+                      className="neu-input text-xs"
+                      placeholder="Latitude (e.g. 6.9271)"
+                    />
+                    <input
+                      type="number"
+                      step="any"
+                      value={longitude ?? ''}
+                      onChange={(e) => setLongitude(Number(e.target.value))}
+                      className="neu-input text-xs"
+                      placeholder="Longitude (e.g. 79.8612)"
+                    />
                   </div>
                 </div>
-              ) : (
-                <div className="text-center py-8">
-                  <Sparkles size={28} className="text-slate-300 mx-auto mb-2" />
-                  <p className="text-xs text-slate-500 mb-4">
-                    Persona not yet generated for this profile.
-                  </p>
-                  <button
-                    onClick={handleRegeneratePersona}
-                    disabled={isRegeneratingPersona}
-                    className="neu-btn neu-btn-primary !py-2 !px-4 text-xs mx-auto"
-                  >
-                    {isRegeneratingPersona ? 'Generating...' : 'Generate Persona'}
+
+                {/* Continue button */}
+                <div className="flex justify-end pt-3">
+                  <button onClick={handleSaveStep1} className="neu-btn neu-btn-primary">
+                    <span>Continue</span>
+                    <ArrowRight size={16} />
                   </button>
                 </div>
-              )}
-            </div>
-
-            {/* Profile Visibility Controls */}
-            <div className="glass-card p-5">
-              <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                <Eye size={14} className="text-blue-500" />
-                Discovery Status
-              </h4>
-              <p className="text-xs text-slate-500 mb-3">
-                Your profile is currently <strong className="text-slate-700 font-bold">{visibility}</strong> and{' '}
-                {profile?.is_searchable ? (
-                  <span className="text-green-600 font-bold">visible to recruiters</span>
-                ) : (
-                  <span className="text-amber-600 font-bold">hidden from searches</span>
-                )}
-                .
-              </p>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => {
-                    const next = visibility === 'public' ? 'private' : 'public';
-                    setVisibility(next);
-                    api.updateProfile({ profile_visibility: next }).then((res) => setProfile(res));
-                  }}
-                  className="neu-btn neu-btn-secondary !py-1.5 !px-3 text-xs w-full"
-                >
-                  Toggle to {visibility === 'public' ? 'Private' : 'Public'}
-                </button>
               </div>
-            </div>
-          </div>
-        </div>
-      )}
+            )}
 
-      {/* SUBTAB 2: RESUME UPLOAD */}
-      {activeSubTab === 'upload' && (
-        <div className="max-w-2xl mx-auto space-y-6">
-          <div className="glass-card p-8 text-center">
-            <h2 className="text-xl font-bold text-slate-900 font-heading mb-2">
-              Upload CV or Resume
-            </h2>
-            <p className="text-xs text-slate-500 mb-6 max-w-md mx-auto">
-              We extract text without LLMs (using PyMuPDF & python-docx), parse obvious patterns with rules, and run structured Gemini AI extraction before letting you review the facts.
-            </p>
+            {/* STEP 2: SOLUTIONS PROFILE / FUNCTIONAL AREAS & SKILLS */}
+            {currentStep === 2 && (
+              <div className="space-y-6">
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 font-heading">
+                    Select your functional focus areas
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Click to toggle key engineering domains (inspired by Cisco ROI functional areas).
+                  </p>
+                </div>
 
-            {/* Drag & Drop Area */}
-            <div
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={handleFileDrop}
-              onClick={() => fileInputRef.current?.click()}
-              className="dropzone mb-6"
-            >
-              <input
-                type="file"
-                ref={fileInputRef}
-                className="hidden"
-                accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                onChange={(e) => {
-                  if (e.target.files && e.target.files[0]) {
-                    setSelectedFile(e.target.files[0]);
-                  }
-                }}
-              />
-              <UploadCloud size={42} className="text-blue-500 mx-auto mb-3" />
-              <p className="text-sm font-bold text-slate-700">
-                {selectedFile ? selectedFile.name : 'Click to browse or drop PDF / DOCX here'}
-              </p>
-              <p className="text-xs text-slate-400 mt-1">
-                {selectedFile
-                  ? `${(selectedFile.size / 1024).toFixed(1)} KB`
-                  : 'Supported formats: PDF, DOCX (Max 10MB)'}
-              </p>
-            </div>
+                {/* Cisco-Style Pill Grid */}
+                <div className="flex flex-wrap gap-2.5">
+                  {functionalOptions.map((opt) => {
+                    const isSelected = selectedFunctionalAreas.includes(opt.id);
+                    return (
+                      <button
+                        type="button"
+                        key={opt.id}
+                        onClick={() => toggleFunctionalArea(opt.id)}
+                        className={`toggle-pill ${isSelected ? 'selected' : ''}`}
+                      >
+                        <span>{opt.icon}</span>
+                        <span>{opt.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
 
-            {/* Upload Button */}
-            <button
-              onClick={handleUploadResume}
-              disabled={!selectedFile || isUploading}
-              className="neu-btn neu-btn-primary !py-2.5 !px-8 text-sm font-semibold mx-auto"
-            >
-              {isUploading ? 'Processing Document...' : 'Upload & Analyze Resume'}
-            </button>
+                {/* Skills Taxonomy Manager */}
+                <div className="pt-4 border-t border-slate-200">
+                  <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                    <Sparkles size={14} className="text-blue-600" />
+                    <span>Skills & Canonical Aliases</span>
+                  </h4>
+                  <form onSubmit={handleAddSkill} className="flex gap-2 mb-3">
+                    <input
+                      type="text"
+                      value={newSkill}
+                      onChange={(e) => setNewSkill(e.target.value)}
+                      placeholder="e.g. Python, FastAPI, Docker, PostgreSQL..."
+                      className="neu-input text-xs"
+                    />
+                    <input
+                      type="number"
+                      min="0"
+                      max="30"
+                      value={newSkillYears}
+                      onChange={(e) => setNewSkillYears(Number(e.target.value))}
+                      className="neu-input text-xs w-20 text-center"
+                      title="Years of experience"
+                    />
+                    <button type="submit" className="neu-btn neu-btn-primary !py-2 !px-4 text-xs shrink-0">
+                      <Plus size={14} />
+                      <span>Add Skill</span>
+                    </button>
+                  </form>
 
-            {/* Progress Status */}
-            {uploadProgressState && (
-              <div className="mt-6 p-4 rounded-xl bg-blue-50/80 border border-blue-200 text-left">
-                <div className="flex items-center gap-3">
-                  <RefreshCw className="animate-spin text-blue-600 shrink-0" size={18} />
+                  <div className="flex flex-wrap gap-2">
+                    {profile?.skills && profile.skills.length > 0 ? (
+                      profile.skills.map((s) => (
+                        <span key={s.id} className="skill-badge text-xs">
+                          <span className="font-bold">{s.normalized_name}</span>
+                          {s.original_name !== s.normalized_name && (
+                            <span className="text-[10px] text-slate-400">({s.original_name})</span>
+                          )}
+                          <span className="text-[10px] text-blue-600 font-bold">{s.years_experience}y</span>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveSkill(s.id)}
+                            className="text-red-400 hover:text-red-600 ml-1"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </span>
+                      ))
+                    ) : (
+                      <p className="text-xs text-slate-400 italic">No skills listed yet.</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex-between pt-4">
+                  <button onClick={() => setCurrentStep(1)} className="neu-btn neu-btn-secondary">
+                    <ArrowLeft size={16} />
+                    <span>Back</span>
+                  </button>
+                  <button onClick={() => setCurrentStep(3)} className="neu-btn neu-btn-primary">
+                    <span>Next: Document Ingestion</span>
+                    <ArrowRight size={16} />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* STEP 3: RESUME UPLOAD (PDF / DOCX) */}
+            {currentStep === 3 && (
+              <div className="space-y-6">
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 font-heading">
+                    Document Ingestion & AI Pipeline
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Extract text via PyMuPDF (NO LLM) $\to$ Rule-based extraction $\to$ Gemini AI structured reconciliation.
+                  </p>
+                </div>
+
+                {/* Drag & Drop Area */}
+                <div
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={handleFileDrop}
+                  onClick={() => fileInputRef.current?.click()}
+                  className="dropzone"
+                >
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    className="hidden"
+                    accept=".pdf,.docx"
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files[0]) {
+                        setSelectedFile(e.target.files[0]);
+                      }
+                    }}
+                  />
+                  <UploadCloud size={44} className="text-blue-600 mx-auto mb-3" />
+                  <p className="text-sm font-bold text-slate-800">
+                    {selectedFile ? selectedFile.name : 'Click to select or drag & drop resume file'}
+                  </p>
+                  <p className="text-xs text-slate-400 mt-1">
+                    {selectedFile
+                      ? `${(selectedFile.size / 1024).toFixed(1)} KB`
+                      : 'Supported formats: PDF, DOCX (Max 10MB)'}
+                  </p>
+                </div>
+
+                {pipelineState && (
+                  <div className="p-4 rounded-xl bg-blue-50 border border-blue-200 flex items-center gap-3">
+                    <RefreshCw size={18} className="animate-spin text-blue-600 shrink-0" />
+                    <span className="text-xs font-semibold text-blue-800">{pipelineState}</span>
+                  </div>
+                )}
+
+                <div className="flex-between pt-4">
+                  <button onClick={() => setCurrentStep(2)} className="neu-btn neu-btn-secondary">
+                    <ArrowLeft size={16} />
+                    <span>Back</span>
+                  </button>
+                  <button
+                    onClick={handleUploadResume}
+                    disabled={!selectedFile || isUploading}
+                    className="neu-btn neu-btn-primary"
+                  >
+                    <span>{isUploading ? 'Ingesting...' : 'Ingest & Reconcile with Gemini'}</span>
+                    <ArrowRight size={16} />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* STEP 4: REVIEW RECONCILED FACTS & CONFIRM */}
+            {currentStep === 4 && extractionData && (
+              <div className="space-y-6">
+                <div className="p-4 rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 flex-between">
                   <div>
-                    <p className="text-xs font-bold text-blue-800">Pipeline In Progress</p>
-                    <p className="text-xs text-blue-600">{uploadProgressState}</p>
+                    <span className="provenance-tag provenance-ai">
+                      AI + Rule Reconciliation
+                    </span>
+                    <h3 className="text-base font-bold text-slate-900 font-heading mt-1">
+                      Review Extracted Facts
+                    </h3>
+                    <p className="text-xs text-slate-600">
+                      Edit any fields below before committing to authoritative PostgreSQL tables.
+                    </p>
+                  </div>
+                  <button onClick={handleConfirmExtraction} className="neu-btn neu-btn-primary !py-2.5 !px-6 text-xs shadow-md">
+                    <CheckCircle2 size={16} />
+                    <span>Confirm & Persist Profile</span>
+                  </button>
+                </div>
+
+                {/* Identity & Skills with Provenance */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                  <div className="p-4 rounded-xl bg-white border border-slate-200">
+                    <span className="text-slate-400 font-semibold block mb-1">Extracted Candidate Name:</span>
+                    <input
+                      type="text"
+                      value={extractionData.personal_information.full_name || ''}
+                      onChange={(e) =>
+                        setExtractionData({
+                          ...extractionData,
+                          personal_information: {
+                            ...extractionData.personal_information,
+                            full_name: e.target.value,
+                          },
+                        })
+                      }
+                      className="neu-input font-bold"
+                    />
+                  </div>
+
+                  <div className="p-4 rounded-xl bg-white border border-slate-200">
+                    <span className="text-slate-400 font-semibold block mb-1">Extracted Email:</span>
+                    <input
+                      type="text"
+                      value={extractionData.personal_information.email || ''}
+                      onChange={(e) =>
+                        setExtractionData({
+                          ...extractionData,
+                          personal_information: {
+                            ...extractionData.personal_information,
+                            email: e.target.value,
+                          },
+                        })
+                      }
+                      className="neu-input"
+                    />
+                  </div>
+                </div>
+
+                {/* Skills tags with Provenance Badges */}
+                <div className="p-4 rounded-xl bg-white border border-slate-200">
+                  <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+                    Extracted Skills (with Provenance)
+                  </h4>
+                  <div className="flex flex-wrap gap-2">
+                    {extractionData.skills.map((s, idx) => (
+                      <span key={idx} className="skill-badge text-xs">
+                        <span>{s.original_name}</span>
+                        <span className={`provenance-tag ${s.source === 'rule_based' ? 'provenance-rule' : 'provenance-ai'}`}>
+                          {s.source}
+                        </span>
+                      </span>
+                    ))}
                   </div>
                 </div>
               </div>
             )}
           </div>
-        </div>
-      )}
 
-      {/* SUBTAB 3: EXTRACTED REVIEW & CONFIRMATION */}
-      {activeSubTab === 'review' && extractionData && (
-        <div className="space-y-6">
-          <div className="glass-card p-6 bg-gradient-to-r from-blue-50/60 to-indigo-50/60 border-blue-200">
-            <div className="flex-between flex-wrap gap-4">
-              <div>
-                <span className="text-[11px] font-bold uppercase tracking-wider text-blue-700 bg-blue-100/80 px-2.5 py-1 rounded-full border border-blue-200">
-                  AI + Rule Reconciliation Review
+          {/* Right Guidance / About Column (Image 1 Cisco Inspiration) */}
+          <div className="space-y-6">
+            <div className="p-6 rounded-2xl bg-slate-50/80 border border-slate-200">
+              <h4 className="text-lg font-bold text-slate-900 font-heading mb-2">
+                {currentStep === 1
+                  ? 'About Organization'
+                  : currentStep === 2
+                  ? 'Solutions Profile'
+                  : currentStep === 3
+                  ? 'Document Ingestion'
+                  : 'Review Details'}
+              </h4>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                {currentStep === 1
+                  ? 'Enter the basic contact, geographic coordinates, and seniority details to establish your searchable record.'
+                  : currentStep === 2
+                  ? 'Select your key functional engineering areas and specify your canonical technical proficiencies.'
+                  : currentStep === 3
+                  ? 'Upload your curriculum vitae. Plain text will be extracted safely without AI first, then analyzed by Gemini.'
+                  : 'Verify the reconciled facts. Nothing becomes authoritative until you click Confirm & Persist.'}
+              </p>
+
+              {/* Minimal Line Illustration Placeholder */}
+              <div className="mt-8 pt-6 border-t border-slate-200 text-center">
+                <div className="w-20 h-20 mx-auto rounded-2xl bg-white border border-slate-200 shadow-sm flex-center text-blue-600 mb-2">
+                  <Cpu size={36} />
+                </div>
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                  Dullnit Ingestion Engine
                 </span>
-                <h2 className="text-xl font-bold text-slate-900 font-heading mt-2">
-                  Review Extracted Information
-                </h2>
-                <p className="text-xs text-slate-600 mt-0.5">
-                  Confirm the parsed facts. Nothing becomes authoritative until you click "Confirm & Persist Profile".
-                </p>
-              </div>
-
-              <button
-                onClick={handleConfirmExtraction}
-                className="neu-btn neu-btn-primary !py-2.5 !px-6 text-sm font-semibold shadow-lg"
-              >
-                <CheckCircle2 size={16} />
-                <span>Confirm & Persist Profile</span>
-              </button>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Extracted Personal Info */}
-            <div className="glass-card p-6">
-              <h3 className="text-sm font-bold text-slate-800 font-heading mb-4 flex items-center gap-2">
-                <Briefcase size={16} className="text-blue-500" />
-                <span>Extracted Identity & Summary</span>
-              </h3>
-              <div className="space-y-3 text-xs">
-                <div>
-                  <span className="text-slate-400 font-semibold block">Full Name:</span>
-                  <span className="text-slate-800 font-bold text-sm">
-                    {extractionData.personal_information.full_name || 'Not detected'}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-slate-400 font-semibold block">Headline:</span>
-                  <span className="text-slate-700">
-                    {extractionData.professional_information.headline || 'Not detected'}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-slate-400 font-semibold block">Location:</span>
-                  <span className="text-slate-700">
-                    {extractionData.personal_information.city
-                      ? `${extractionData.personal_information.city}, ${extractionData.personal_information.country}`
-                      : 'Not detected'}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-slate-400 font-semibold block">Estimated Experience:</span>
-                  <span className="text-slate-700 font-bold">
-                    {extractionData.professional_information.estimated_total_experience_years ?? 0} Years
-                  </span>
-                </div>
               </div>
             </div>
 
-            {/* Extracted Skills with Provenance */}
-            <div className="glass-card p-6">
-              <h3 className="text-sm font-bold text-slate-800 font-heading mb-4 flex items-center gap-2">
-                <Sparkles size={16} className="text-blue-500" />
-                <span>Extracted Skills (with Provenance)</span>
-              </h3>
-              <div className="flex flex-wrap gap-2 max-h-56 overflow-y-auto pr-1">
-                {extractionData.skills && extractionData.skills.length > 0 ? (
-                  extractionData.skills.map((sk, idx) => (
-                    <span key={idx} className="skill-tag text-xs">
-                      <span className="font-semibold">{sk.normalized_name || sk.original_name}</span>
-                      <span className="text-[9px] uppercase px-1 py-0.5 rounded bg-blue-100 text-blue-700 font-mono font-bold">
-                        {sk.source}
-                      </span>
-                    </span>
-                  ))
-                ) : (
-                  <p className="text-xs text-slate-400">No skills detected.</p>
-                )}
+            {/* Profile Completeness Meter */}
+            <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-sm">
+              <div className="flex-between mb-2">
+                <span className="text-xs font-bold text-slate-700">Profile Completeness</span>
+                <span className="text-xs font-extrabold text-blue-600">
+                  {profile?.completeness_score ?? 95}%
+                </span>
               </div>
-            </div>
-          </div>
-
-          {/* Extracted Experience List */}
-          <div className="glass-card p-6">
-            <h3 className="text-sm font-bold text-slate-800 font-heading mb-4 flex items-center gap-2">
-              <Briefcase size={16} className="text-blue-500" />
-              <span>Extracted Work History</span>
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {extractionData.experience && extractionData.experience.length > 0 ? (
-                extractionData.experience.map((exp, idx) => (
-                  <div key={idx} className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs">
-                    <div className="flex-between mb-1">
-                      <span className="font-bold text-slate-800">{exp.original_job_title}</span>
-                      <span className="text-[10px] text-purple-600 font-bold">
-                        {exp.normalized_role || 'General'}
-                      </span>
-                    </div>
-                    <p className="text-slate-600 font-semibold">{exp.company}</p>
-                    {exp.description && (
-                      <p className="text-slate-500 mt-2 text-[11px] leading-relaxed line-clamp-3">
-                        {exp.description}
-                      </p>
-                    )}
-                  </div>
-                ))
-              ) : (
-                <p className="text-xs text-slate-400">No experience records detected.</p>
-              )}
+              <div className="meter-track">
+                <div
+                  className="meter-fill meter-fill-blue"
+                  style={{ width: `${profile?.completeness_score ?? 95}%` }}
+                ></div>
+              </div>
             </div>
           </div>
         </div>
-      )}
+      </div>
+
+      {/* 2. "HENRY"-STYLE EXECUTIVE CANDIDATE PERSONA (Image 4 Inspiration) */}
+      <div>
+        <div className="flex-between mb-4 px-1">
+          <div>
+            <h3 className="text-xl font-black text-slate-900 font-heading">
+              Executive Candidate Persona
+            </h3>
+            <p className="text-xs text-slate-500">
+              Derived non-authoritative representation generated from your verified database facts.
+            </p>
+          </div>
+          <button
+            onClick={handleRegeneratePersona}
+            className="neu-btn neu-btn-secondary !py-2 text-xs font-bold"
+          >
+            <RefreshCw size={13} />
+            <span>Regenerate with Gemini</span>
+          </button>
+        </div>
+
+        <CandidatePersonaCard
+          persona={persona}
+          candidateName={profile?.full_name || 'Demuni Jayasmith'}
+          candidateLocation={profile?.location}
+          totalYearsExp={profile?.total_years_experience || 4}
+          onRegenerate={handleRegeneratePersona}
+        />
+      </div>
     </div>
   );
 };
