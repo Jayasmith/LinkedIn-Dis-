@@ -1,125 +1,85 @@
-import React, { useState, useEffect } from 'react';
-import { api } from '../services/api';
-import type { CandidateProfile, CandidatePersona } from '../types';
+import React, { useState } from 'react';
+import type { CandidatePersona } from '../types';
 import {
-  ArrowUp,
-  RefreshCw,
-  Loader2,
+  X,
   User,
+  CheckCircle2,
+  Loader2,
+  Building2,
   Edit3,
 } from 'lucide-react';
 
-interface Flow2Props {
-  onGoToUpload?: () => void;
-  onRegenerate?: () => void;
+export interface PersonaModalCandidate {
+  id?: string;
+  candidate_id?: string;
+  full_name?: string;
+  display_name?: string;
+  headline?: string;
+  bio?: string;
+  avatar_url?: string;
+  total_years_experience: number;
+  city?: string;
+  country?: string;
+  availability_status?: string;
+  desired_salary?: string;
+  skills: Array<{ name: string; category?: string; years?: number } | string>;
+  education?: Array<any>;
+  experiences?: Array<any>;
+  persona?: CandidatePersona;
 }
 
-export const Flow2_PersonaView: React.FC<Flow2Props> = ({ onGoToUpload, onRegenerate }) => {
-  const [profile, setProfile] = useState<CandidateProfile | null>(null);
-  const [persona, setPersona] = useState<CandidatePersona | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [isRegenerating, setIsRegenerating] = useState(false);
+interface CandidatePersonaModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  candidate: PersonaModalCandidate | null;
+  isSelf?: boolean;
+  onEditProfile?: () => void;
+  onRecruit?: (candidateId: string) => Promise<void>;
+  isRecruited?: boolean;
+}
 
-  const loadData = async () => {
-    setLoading(true);
-    try {
-      await api.ensureCandidateAuth();
-      const p = await api.getMyProfile();
-      setProfile(p);
-      try {
-        const per = await api.getPersona();
-        setPersona(per);
-      } catch {
-        setPersona(null);
-      }
-    } catch {
-      setProfile(null);
-      setPersona(null);
-    } finally {
-      setLoading(false);
-    }
-  };
+export const CandidatePersonaModal: React.FC<CandidatePersonaModalProps> = ({
+  isOpen,
+  onClose,
+  candidate,
+  isSelf = false,
+  onEditProfile,
+  onRecruit,
+  isRecruited = false,
+}) => {
+  const [recruiting, setRecruiting] = useState(false);
+  const [justRecruited, setJustRecruited] = useState(false);
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  if (!isOpen || !candidate) return null;
 
-  const handleRegenerate = async () => {
-    setIsRegenerating(true);
-    try {
-      const refreshed = await api.regeneratePersona();
-      setPersona(refreshed);
-      if (onRegenerate) onRegenerate();
-    } catch {
-      // fallback
-    } finally {
-      setIsRegenerating(false);
-    }
-  };
+  const candidateId = candidate.id || candidate.candidate_id || '';
+  const candidateName = candidate.full_name || candidate.display_name || 'Demuni Jayasmith';
+  const isDemuni = candidateName.toLowerCase().includes('demuni') || candidate.avatar_url?.includes('candidate_persona');
 
-  if (loading) {
-    return (
-      <div className="min-h-[calc(100vh-65px)] bg-[#f9fafb] flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
-      </div>
-    );
-  }
+  // Photo resolution fallback
+  const photoUrl = candidate.avatar_url || (isDemuni ? '/candidate_persona_portrait.jpg' : 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=800&q=80');
 
-  // ── EMPTY STATE ──
-  const hasDossier = (profile && profile.full_name) || (persona && persona.headline);
-  if (!hasDossier) {
-    return (
-      <div className="min-h-[calc(100vh-65px)] bg-[#f9fafb] flex flex-col items-center justify-center p-6 text-center font-sans antialiased">
-        <div className="w-36 h-36 rounded-2xl overflow-hidden border-2 border-dashed border-gray-200 shadow-xs mb-6 mx-auto bg-gray-50 flex items-center justify-center">
-          <img
-            src="/no_person_avatar.jpg"
-            alt="No dossier yet"
-            className="w-full h-full object-cover"
-            onError={(e) => {
-              (e.target as HTMLElement).style.display = 'none';
-            }}
-          />
-        </div>
+  const normalizedSkills: string[] = (candidate.skills || []).map((s) =>
+    typeof s === 'string' ? s : s.name
+  );
 
-        <h2 className="text-2xl font-bold text-gray-900 tracking-tight mb-2">
-          No dossier yet
-        </h2>
+  const persona = candidate.persona;
+  const headline = candidate.headline || persona?.headline || 'Lead AI Systems & Full-Stack Software Engineer';
+  const locationStr = [candidate.city, candidate.country].filter(Boolean).join(', ') || 'Colombo, Sri Lanka';
+  const yearsExp = candidate.total_years_experience ?? 4;
 
-        <p className="text-sm text-gray-500 max-w-sm mx-auto mb-6 leading-relaxed">
-          Build your profile manually and we'll generate your candidate persona automatically.
-        </p>
-
-        <button
-          type="button"
-          onClick={onGoToUpload}
-          className="inline-flex items-center gap-2 px-7 py-2.5 rounded-full border-2 border-black bg-transparent text-black text-xs font-bold tracking-wider uppercase hover:bg-black hover:text-white transition-all shadow-xs cursor-pointer"
-        >
-          <ArrowUp className="w-4 h-4" />
-          <span>UPLOAD PROFILE</span>
-        </button>
-      </div>
-    );
-  }
-
-  // ── USER PERSONA VIEW (EXACT IMAGE 1 MATCH) ──
-  const candidateName = profile?.full_name || 'Demuni Jayasmith';
-  const isDemuni = candidateName.toLowerCase().includes('demuni');
-  const yearsExp = profile?.total_years_experience ?? 4;
-  const age = isDemuni ? 24 : Math.min(50, Math.max(24, Math.round(22 + yearsExp * 1.5)));
+  // Derive realistic Age & Subline
+  const age = isDemuni ? 24 : Math.min(52, Math.max(25, Math.round(22 + yearsExp * 1.5)));
   const sublineRole = isDemuni
     ? 'AI & Full-Stack Software Engineer'
-    : (persona?.primary_profession || profile?.headline?.split('&')[0].trim() || 'Software Engineer');
+    : (persona?.primary_profession || headline.split('&')[0].trim() || 'Software Engineer');
 
-  const locationStr = profile?.location
-    ? `${profile.location.city || ''}, ${profile.location.country || ''}`.replace(/^, |, $/g, '')
-    : 'Colombo, Sri Lanka';
-
+  // Real "About" narrative
   const aboutText = isDemuni
-    ? (profile?.bio || persona?.summary || "He is a dedicated AI Systems & Full-Stack Engineer who specializes in autonomous agent orchestration, high-concurrency backend microservices, and modern reactive web platforms. Currently completing Pearson HND Level 5 in Software Engineering and Pearson HND in Business Management, he combines technical rigor with strategic execution. He thrives on solving difficult technical challenges, architecting low-latency FastAPI services, and building AI tools that solve real-world problems.")
-    : (persona?.summary || profile?.bio || "A dedicated engineering professional with verified experience in distributed systems.");
+    ? (candidate.bio || "He is a dedicated AI Systems & Full-Stack Engineer who specializes in autonomous agent orchestration, high-concurrency backend microservices, and modern reactive web platforms. Currently completing Pearson HND Level 5 in Software Engineering and Pearson HND in Business Management, he combines technical rigor with strategic execution. He thrives on solving difficult technical challenges, architecting low-latency FastAPI services, and building AI tools that solve real-world problems.")
+    : (candidate.bio || persona?.summary || "A seasoned technology practitioner specialized in architecting resilient microservices, high-performance distributed systems, and modern web platforms with verified engineering competencies.");
 
-  const topSkills = persona?.top_skills || profile?.skills?.map((s: any) => s.normalized_name || s.original_name) || ["Python", "FastAPI", "React", "Docker"];
-
+  // Real "Goals" bullet points
   const goals: string[] = isDemuni
     ? [
         "Architect scalable multi-agent systems and low-latency LLM inference pipelines",
@@ -127,11 +87,12 @@ export const Flow2_PersonaView: React.FC<Flow2Props> = ({ onGoToUpload, onRegene
         "Combine advanced software engineering with business strategy to scale tech products",
       ]
     : [
-        `Lead enterprise-scale technical initiatives in ${topSkills.slice(0, 3).join(', ')}`,
+        `Lead enterprise-scale technical initiatives in ${normalizedSkills.slice(0, 3).join(', ') || 'modern software'}`,
         "Drive architectural excellence and high-concurrency platform resilience",
         "Mentor high-performing software teams and optimize development velocity",
       ];
 
+  // Real "Frustrations" bullet points
   const frustrations: string[] = isDemuni
     ? [
         "Fragile, undocumented legacy codebases with high maintenance overhead",
@@ -144,30 +105,45 @@ export const Flow2_PersonaView: React.FC<Flow2Props> = ({ onGoToUpload, onRegene
         "Inadequate documentation and siloed engineering teams hampering product delivery",
       ];
 
+  // Tech Awareness & Environment values
   const techAwareness = isDemuni
     ? "Advanced • Python / PyTorch / FastAPI"
-    : `Advanced • ${topSkills.slice(0, 3).join(' / ')}`;
+    : `Advanced • ${normalizedSkills.slice(0, 3).join(' / ') || 'Cloud & Distributed Systems'}`;
 
   const preferredDevices = isDemuni
     ? "Linux / Cloud Native • VS Code"
     : "macOS / Linux • Cloud Native Stack";
 
+  const handleRecruitClick = async () => {
+    if (!onRecruit || !candidateId) return;
+    setRecruiting(true);
+    try {
+      await onRecruit(candidateId);
+      setJustRecruited(true);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setRecruiting(false);
+    }
+  };
+
   return (
-    <div className="min-h-[calc(100vh-65px)] bg-gradient-to-b from-[#EBF0F5] via-[#F3F6FA] to-[#E8EDF4] py-12 px-4 sm:px-6 lg:px-8 font-sans antialiased text-gray-900 relative overflow-hidden flex items-center justify-center">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 lg:p-8 animate-fadeIn">
       
-      {/* ── AMBIENT 3D ACCENTS (Floating Clouds & Golden Lightning matching Image 1) ── */}
+      {/* ── AMBIENT PLAYFUL 3D ACCENTS (Floating Clouds & Golden Lightning matching Image 1) ── */}
       <div aria-hidden="true" className="pointer-events-none fixed inset-0 overflow-hidden select-none">
         {/* Top Left 3D Cloud */}
-        <div className="absolute top-16 left-12 hidden xl:block opacity-85">
+        <div className="absolute top-12 left-10 hidden xl:block opacity-85 transition-transform duration-1000 hover:scale-105">
           <svg width="110" height="70" viewBox="0 0 110 70" fill="none">
             <ellipse cx="45" cy="45" rx="35" ry="22" fill="white" fillOpacity="0.95" />
             <ellipse cx="72" cy="38" rx="28" ry="20" fill="white" fillOpacity="0.95" />
             <ellipse cx="56" cy="26" rx="24" ry="18" fill="white" />
+            <ellipse cx="32" cy="35" rx="18" ry="14" fill="#F0F4F8" />
           </svg>
         </div>
 
         {/* Top Right Floating Golden Lightning */}
-        <div className="absolute top-20 right-20 hidden xl:block opacity-90">
+        <div className="absolute top-16 right-16 hidden xl:block opacity-90 transition-transform duration-700 hover:rotate-6">
           <div className="w-11 h-11 rounded-2xl bg-amber-400 shadow-[0_8px_20px_rgba(251,191,36,0.5)] flex items-center justify-center transform rotate-12">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
               <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" fill="white" />
@@ -176,7 +152,7 @@ export const Flow2_PersonaView: React.FC<Flow2Props> = ({ onGoToUpload, onRegene
         </div>
 
         {/* Bottom Left Floating Golden Lightning */}
-        <div className="absolute bottom-24 left-20 hidden xl:block opacity-85">
+        <div className="absolute bottom-20 left-16 hidden xl:block opacity-85 transition-transform duration-700 hover:-rotate-12">
           <div className="w-9 h-9 rounded-xl bg-amber-400 shadow-[0_6px_16px_rgba(251,191,36,0.4)] flex items-center justify-center transform -rotate-12">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
               <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" fill="white" />
@@ -185,7 +161,7 @@ export const Flow2_PersonaView: React.FC<Flow2Props> = ({ onGoToUpload, onRegene
         </div>
 
         {/* Bottom Right 3D Cloud */}
-        <div className="absolute bottom-16 right-16 hidden xl:block opacity-85">
+        <div className="absolute bottom-12 right-12 hidden xl:block opacity-85">
           <svg width="120" height="75" viewBox="0 0 120 75" fill="none">
             <ellipse cx="50" cy="48" rx="38" ry="24" fill="white" fillOpacity="0.95" />
             <ellipse cx="80" cy="42" rx="30" ry="22" fill="white" fillOpacity="0.95" />
@@ -194,8 +170,8 @@ export const Flow2_PersonaView: React.FC<Flow2Props> = ({ onGoToUpload, onRegene
         </div>
       </div>
 
-      {/* ── MAIN USER PERSONA CARD ── */}
-      <div className="relative w-full max-w-[940px] rounded-[32px] sm:rounded-[36px] bg-white border border-slate-200/80 shadow-[0_30px_70px_-15px_rgba(15,23,42,0.14)] p-6 sm:p-8 lg:p-9 my-auto overflow-hidden z-10 font-sans">
+      {/* ── MAIN USER PERSONA CARD (EXACT IMAGE 1 MATCH) ── */}
+      <div className="relative w-full max-w-[940px] rounded-[32px] sm:rounded-[36px] bg-white border border-slate-200/80 shadow-[0_30px_70px_-15px_rgba(15,23,42,0.18)] p-6 sm:p-8 lg:p-9 my-auto overflow-hidden z-10 font-sans">
         
         {/* Top Header: 👤 User Persona + Subtitle */}
         <div className="flex items-start justify-between mb-6 pb-2">
@@ -214,26 +190,43 @@ export const Flow2_PersonaView: React.FC<Flow2Props> = ({ onGoToUpload, onRegene
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              disabled={isRegenerating}
-              onClick={handleRegenerate}
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition cursor-pointer"
-            >
-              <RefreshCw className={`w-3 h-3 ${isRegenerating ? 'animate-spin' : ''}`} />
-              <span>{isRegenerating ? 'Regenerating...' : 'Regenerate'}</span>
-            </button>
-
-            {onGoToUpload && (
+            {isSelf && onEditProfile && (
               <button
                 type="button"
-                onClick={onGoToUpload}
-                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#111311] hover:bg-[#272B27] text-white text-xs font-semibold shadow-xs transition cursor-pointer"
+                onClick={onEditProfile}
+                className="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition cursor-pointer"
               >
                 <Edit3 className="w-3 h-3" />
                 <span>Edit Profile</span>
               </button>
             )}
+
+            {!isSelf && onRecruit && (
+              isRecruited || justRecruited ? (
+                <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-semibold">
+                  <CheckCircle2 className="w-3.5 h-3.5" /> Recruited
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  disabled={recruiting}
+                  onClick={handleRecruitClick}
+                  className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-[#111311] hover:bg-[#272B27] text-white text-xs font-semibold shadow-xs transition cursor-pointer"
+                >
+                  {recruiting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Building2 className="w-3.5 h-3.5" />}
+                  <span>Recruit Candidate</span>
+                </button>
+              )
+            )}
+
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 transition cursor-pointer"
+              aria-label="Close persona modal"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
         </div>
 
@@ -243,11 +236,11 @@ export const Flow2_PersonaView: React.FC<Flow2Props> = ({ onGoToUpload, onRegene
           {/* ── LEFT COLUMN: TALL PORTRAIT CARD WITH DARK GRADIENT OVERLAY ── */}
           <div className="relative w-full md:w-[280px] lg:w-[310px] shrink-0 rounded-[24px] overflow-hidden min-h-[420px] shadow-sm bg-slate-100 group">
             <img
-              src="/candidate_persona_portrait.jpg"
+              src={photoUrl}
               alt={candidateName}
               className="absolute inset-0 w-full h-full object-cover object-center transition-transform duration-700 group-hover:scale-105"
               onError={(e) => {
-                (e.target as HTMLElement).setAttribute('src', 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=800&q=80');
+                (e.target as HTMLElement).setAttribute('src', '/candidate_persona_portrait.jpg');
               }}
             />
 
@@ -324,7 +317,7 @@ export const Flow2_PersonaView: React.FC<Flow2Props> = ({ onGoToUpload, onRegene
                     STATUS
                   </div>
                   <div className="text-xs sm:text-sm font-semibold text-[#1E2530] mt-0.5 truncate">
-                    {profile?.availability_status ? `${profile.availability_status.toUpperCase()} • Open to Offers` : 'Lead Engineer • Available Now'}
+                    {candidate.availability_status ? `${candidate.availability_status.toUpperCase()} • Open to Offers` : 'Senior Engineer • Available Now'}
                   </div>
                 </div>
 

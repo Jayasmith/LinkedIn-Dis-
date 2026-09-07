@@ -63,6 +63,10 @@ export interface CandidateProfile {
   full_name: string;
   headline?: string;
   bio?: string;
+  avatar_url?: string;
+  phone?: string;
+  date_of_birth?: string;
+  gender?: string;
   total_years_experience: number;
   availability_status: string;
   profile_visibility: 'public' | 'anonymous' | 'private';
@@ -149,6 +153,11 @@ export interface CandidateSearchResult {
   display_name: string;
   headline?: string;
   summary?: string;
+  avatar_url?: string;
+  email?: string;
+  phone?: string;
+  date_of_birth?: string;
+  gender?: string;
   total_years_experience: number;
   city?: string;
   country?: string;
@@ -165,6 +174,11 @@ export interface RecruiterCandidateDetail {
   display_name: string;
   headline?: string;
   bio?: string;
+  avatar_url?: string;
+  email?: string;
+  phone?: string;
+  date_of_birth?: string;
+  gender?: string;
   total_years_experience: number;
   city?: string;
   country?: string;
@@ -176,3 +190,55 @@ export interface RecruiterCandidateDetail {
   persona?: CandidatePersona;
   profile_visibility: string;
 }
+
+export interface Organization {
+  id: string;
+  name: string;
+  industry?: string;
+  description?: string;
+  website?: string;
+  created_at: string;
+  recruited_count?: number;
+}
+
+export interface RecruitedCandidate {
+  id: string;
+  candidate_id: string;
+  status: string; // "Recruited", "Shortlisted", "Interviewing", "Offer Extended"
+  recruited_role?: string;
+  notes?: string;
+  recruited_at: string;
+  candidate: {
+    id: string;
+    full_name: string;
+    headline?: string;
+    bio?: string;
+    total_years_experience: number;
+    city?: string;
+    country?: string;
+    availability_status?: string;
+    skills: Array<{ name: string; category?: string; years?: number }>;
+    education: Array<{ institution: string; degree: string; field?: string; year?: string }>;
+    experiences: Array<{ company: string; title: string; start?: string; end?: string; description?: string }>;
+    persona?: CandidatePersona;
+  };
+}
+
+export interface ApiKeyStatus {
+  configured: boolean;
+  masked_key?: string;
+  provider: string;
+  model: string;
+  fallback_model?: string;
+  connected: boolean;
+}
+
+export interface ApiKeySwapResult {
+  success: boolean;
+  configured: boolean;
+  masked_key?: string;
+  latency_ms: number;
+  model: string;
+  message: string;
+}
+
