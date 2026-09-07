@@ -1,98 +1,127 @@
-import { useState, useEffect } from 'react';
-import { Navbar } from './components/Navbar';
-import { CandidateDashboard } from './components/CandidateDashboard';
-import { RecruiterDashboard } from './components/RecruiterDashboard';
-import { AuthModal } from './components/AuthModal';
-import { AdminModal } from './components/AdminModal';
-import { api } from './services/api';
-import type { User } from './types';
+import { useState } from 'react';
+import './assets/design-system.css';
+import Flow1_ProfileForm from './components/Flow1_ProfileForm';
+import Flow2_PersonaView from './components/Flow2_PersonaView';
+import Flow3_RecruiterView from './components/Flow3_RecruiterView';
 
 export function App() {
-  const [user, setUser] = useState<User | null>(null);
-  const [activeTab, setActiveTab] = useState<'candidate' | 'recruiter'>('candidate');
-  const [isAuthOpen, setIsAuthOpen] = useState<boolean>(false);
-  const [isAdminOpen, setIsAdminOpen] = useState<boolean>(false);
-
-  useEffect(() => {
-    // Check existing session
-    api.getMe()
-      .then((userData) => {
-        setUser(userData);
-        if (userData.role === 'recruiter') {
-          setActiveTab('recruiter');
-        } else {
-          setActiveTab('candidate');
-        }
-      })
-      .catch(() => {
-        // Not authenticated
-        setUser(null);
-      });
-  }, []);
-
-  const handleLogout = () => {
-    api.clearToken();
-    setUser(null);
-  };
-
-  const handleAuthSuccess = (authenticatedUser: User) => {
-    setUser(authenticatedUser);
-    if (authenticatedUser.role === 'recruiter') {
-      setActiveTab('recruiter');
-    } else {
-      setActiveTab('candidate');
-    }
-  };
+  const [currentFlow, setCurrentFlow] = useState<'flow1' | 'flow2' | 'flow3'>('flow1');
+  const [showStatusModal, setShowStatusModal] = useState<boolean>(false);
 
   return (
-    <div className="min-h-screen flex flex-col">
-      {/* Top Glassmorphic Navigation */}
-      <Navbar
-        user={user}
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        onOpenAuth={() => setIsAuthOpen(true)}
-        onOpenAdmin={() => setIsAdminOpen(true)}
-        onLogout={handleLogout}
-      />
+    <div className="dullnit-app">
+      {/* Platform Header */}
+      <header className="platform-navbar">
+        <div className="platform-logo" style={{ cursor: 'pointer' }} onClick={() => setCurrentFlow('flow1')}>
+          <span>⚡ DULLNIT</span>
+          <span className="platform-logo-badge">TALENT PLATFORM</span>
+        </div>
 
-      {/* Main Content Area */}
-      <main className="container flex-1">
-        {activeTab === 'candidate' ? (
-          <CandidateDashboard onOpenAuth={() => setIsAuthOpen(true)} />
-        ) : (
-          <RecruiterDashboard onOpenAuth={() => setIsAuthOpen(true)} />
+        {/* 3 Core Flow Switcher */}
+        <div className="nav-flow-tabs">
+          <button 
+            type="button"
+            className={`nav-tab-btn ${currentFlow === 'flow1' ? 'active' : ''}`}
+            onClick={() => setCurrentFlow('flow1')}
+          >
+            1. Profile & CV Form
+          </button>
+          <button 
+            type="button"
+            className={`nav-tab-btn ${currentFlow === 'flow2' ? 'active' : ''}`}
+            onClick={() => setCurrentFlow('flow2')}
+          >
+            2. Candidate Persona ("Personal Find")
+          </button>
+          <button 
+            type="button"
+            className={`nav-tab-btn ${currentFlow === 'flow3' ? 'active' : ''}`}
+            onClick={() => setCurrentFlow('flow3')}
+          >
+            3. Recruiter Search & View
+          </button>
+        </div>
+
+        {/* Right Admin / Diagnostic Status */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <button
+            type="button"
+            className="neu-btn-secondary"
+            style={{ padding: '8px 14px', fontSize: '12px' }}
+            onClick={() => setShowStatusModal(true)}
+          >
+            🛡️ System Status
+          </button>
+        </div>
+      </header>
+
+      {/* Flow Views */}
+      <main>
+        {currentFlow === 'flow1' && (
+          <Flow1_ProfileForm onConfirmProfile={() => setCurrentFlow('flow2')} />
+        )}
+        {currentFlow === 'flow2' && (
+          <Flow2_PersonaView onRegenerate={() => {}} />
+        )}
+        {currentFlow === 'flow3' && (
+          <Flow3_RecruiterView />
         )}
       </main>
 
-      {/* Footer */}
-      <footer className="py-6 border-t border-slate-200/60 text-center text-xs text-slate-500 glass-header mt-12">
-        <div className="container flex flex-col sm:flex-row items-center justify-between gap-2">
-          <p className="font-medium text-slate-600">
-            Dullnit Talent Platform &bull; Production Backend Architecture &bull; Sri Lanka
-          </p>
-          <div className="flex items-center gap-4 text-[11px] text-slate-400">
-            <span>FastAPI + PostgreSQL + PostGIS</span>
-            <span>&bull;</span>
-            <span>Gemini AI Structured Output</span>
-            <span>&bull;</span>
-            <span>PyMuPDF & python-docx</span>
+      {/* System Status Modal */}
+      {showStatusModal && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(15, 23, 42, 0.6)',
+          backdropFilter: 'blur(6px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999,
+          padding: '20px'
+        }}>
+          <div className="neu-card" style={{ maxWidth: '520px', width: '100%' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h3 className="title-md" style={{ margin: 0 }}>Dullnit Platform Architecture</h3>
+              <button 
+                type="button" 
+                onClick={() => setShowStatusModal(false)}
+                style={{ border: 'none', background: 'transparent', fontSize: '24px', cursor: 'pointer', color: '#64748b' }}
+              >
+                &times;
+              </button>
+            </div>
+            <div style={{ display: 'grid', gap: '12px', fontSize: '13px', color: '#334155', marginBottom: '20px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: '#f8fafc', borderRadius: '8px' }}>
+                <span>Backend Engine</span>
+                <span style={{ fontWeight: '700', color: '#047857' }}>FastAPI (Port 8000) ✓</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: '#f8fafc', borderRadius: '8px' }}>
+                <span>Database & Spatial</span>
+                <span style={{ fontWeight: '700', color: '#047857' }}>PostgreSQL + PostGIS ✓</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: '#f8fafc', borderRadius: '8px' }}>
+                <span>AI Ingestion & NLP</span>
+                <span style={{ fontWeight: '700', color: '#047857' }}>Google Gemini Structured Output ✓</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: '#f8fafc', borderRadius: '8px' }}>
+                <span>Design System</span>
+                <span style={{ fontWeight: '700', color: '#047857' }}>High-Contrast Neumorphic System ✓</span>
+              </div>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button 
+                type="button" 
+                className="neu-btn-primary" 
+                onClick={() => setShowStatusModal(false)}
+              >
+                Done
+              </button>
+            </div>
           </div>
         </div>
-      </footer>
-
-      {/* Authentication Modal */}
-      <AuthModal
-        isOpen={isAuthOpen}
-        onClose={() => setIsAuthOpen(false)}
-        onSuccess={handleAuthSuccess}
-      />
-
-      {/* System Diagnostics & Admin Modal */}
-      <AdminModal
-        isOpen={isAdminOpen}
-        onClose={() => setIsAdminOpen(false)}
-      />
+      )}
     </div>
   );
 }
